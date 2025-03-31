@@ -17,6 +17,7 @@ This project implements a WebRTC signaling client that facilitates peer-to-peer 
 
 - A modern web browser with WebRTC support
 - Agora account and App ID (for RTM service)
+- Node.js (v14 or higher)
 
 ## Setup
 
@@ -27,21 +28,46 @@ git clone [your-repository-url]
 cd rtc-signaling
 ```
 
-2. Configure your Agora App ID:
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+3. Configure your Agora App ID:
 
    - Sign up for an Agora account
    - Create a new project
    - Copy your App ID
    - Replace the placeholder in the code with your App ID
 
-3. Open `index.html` in your web browser
+4. Start the development server:
+
+```bash
+npm run dev
+```
+
+The application will automatically open in your default browser at `http://localhost:3000`.
 
 ## Project Structure
 
-- `index.html` - Main HTML interface
-- `app.js` - Client-side JavaScript implementation
-- `style.css` - Styling for the application
-- `agora-rtm-2.2.0.1.js` - Agora RTM SDK
+- `src/` - Source files
+  - `index.html` - Main HTML interface
+  - `app.js` - Client-side JavaScript implementation
+  - `style.css` - Styling for the application
+- `vite.config.js` - Vite configuration
+- `package.json` - Project dependencies and scripts
+
+## Dependencies
+
+- `agora-rtm-sdk` - Agora Real-Time Messaging SDK (v2.2.0.1)
+- `vite` - Build tool and development server
+
+## Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build locally
 
 ## Usage
 
