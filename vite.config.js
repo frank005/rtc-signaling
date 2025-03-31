@@ -8,8 +8,8 @@ export default defineConfig({
     open: true,
   },
   build: {
-    outDir: "../dist",
+    outDir: "../",
     assetsDir: "assets",
-    emptyOutDir: true,
+    emptyOutDir: false,
   },
 });

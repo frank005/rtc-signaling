@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebRTC Signaling</title>
+    <!-- Load RTC SDK -->
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N.js"></script>
+    <script type="module" crossorigin src="/rtc-signaling/assets/index-Cw5b0l2I.js"></script>
+    <link rel="stylesheet" crossorigin href="/rtc-signaling/assets/index-Bf95WzPU.css">
+  </head>
+  <body>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+      <div class="modal-content">
+        <h2>Login Settings</h2>
+        <div class="input-group">
+          <label for="appId">App ID:</label>
+          <input id="appId" type="text" placeholder="Enter your Agora App ID" />
+        </div>
+        <div class="input-group">
+          <label for="token">Token (optional):</label>
+          <input
+            id="token"
+            type="text"
+            placeholder="Leave blank if no token required"
+          />
+        </div>
+        <div class="input-group">
+          <label for="userId">User ID:</label>
+          <input
+            id="userId"
+            type="text"
+            placeholder="A unique string for user ID"
+          />
+        </div>
+        <div class="button-group">
+          <button id="loginBtn">Login</button>
+          <button id="closeModalBtn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <header>
+        <h1>Agora RTM 2.x & RTC Demo</h1>
+        <div class="header-controls">
+          <div class="login-status">
+            <span id="loginStatus" class="status-text">Not logged in</span>
+            <span id="presenceIndicator" class="presence-indicator"></span>
+          </div>
+          <button id="showLoginBtn">Login Settings</button>
+          <button id="showDeviceBtn">Device Settings</button>
+          <button id="logoutBtn" disabled>Logout</button>
+        </div>
+      </header>
+
+      <!-- Device Settings Modal -->
+      <div id="deviceModal" class="modal">
+        <div class="modal-content">
+          <h2>Device Settings</h2>
+          <div class="input-group">
+            <label for="audioSelect">Microphone:</label>
+            <select id="audioSelect" class="select-input"></select>
+          </div>
+          <div class="input-group">
+            <label for="videoSelect">Camera:</label>
+            <select id="videoSelect" class="select-input"></select>
+          </div>
+          <div class="button-group">
+            <button id="closeDeviceBtn">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <!-- Video Section -->
+        <section class="video-section">
+          <div class="video-container">
+            <div class="video-box">
+              <div id="localVideo" class="video-player"></div>
+              <div id="remoteVideo" class="video-player"></div>
+            </div>
+            <div class="video-controls">
+              <button id="startVideoBtn" disabled>Start Video</button>
+              <button id="stopVideoBtn" disabled>Stop Video</button>
+              <button id="muteAudioBtn" disabled>Mute Audio</button>
+              <button id="unmuteAudioBtn" disabled>Unmute Audio</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Chat Section -->
+        <section class="chat-section">
+          <div class="channel-controls">
+            <div class="input-group">
+              <label for="channelName">Channel:</label>
+              <input
+                id="channelName"
+                type="text"
+                placeholder="E.g., testChannel"
+              />
+            </div>
+            <div class="button-group">
+              <button id="subscribeBtn" disabled>Subscribe</button>
+              <button id="unsubscribeBtn" disabled>Unsubscribe</button>
+            </div>
+            <p id="channelStatus" class="status-text"></p>
+          </div>
+
+          <div class="chat-container">
+            <div class="chat-tabs">
+              <button class="tab-btn active" data-tab="channel">
+                Channel Chat
+              </button>
+              <button class="tab-btn" data-tab="peer">Peer Chat</button>
+            </div>
+
+            <div class="chat-content">
+              <!-- Channel Chat -->
+              <div id="channelChat" class="chat-panel active">
+                <div class="participants-list">
+                  <h3>Participants</h3>
+                  <div
+                    id="participantsList"
+                    class="participants-container"
+                  ></div>
+                </div>
+                <div class="chat-box" id="channelChatBox"></div>
+                <div class="message-bar">
+                  <input
+                    type="text"
+                    id="channelMsg"
+                    placeholder="Type channel message..."
+                  />
+                  <button id="sendChannelMsgBtn" disabled>Send</button>
+                </div>
+              </div>
+
+              <!-- Peer Chat -->
+              <div id="peerChat" class="chat-panel">
+                <div class="peer-inputs">
+                  <div class="input-group">
+                    <label for="peerId">Peer ID:</label>
+                    <input
+                      id="peerId"
+                      type="text"
+                      placeholder="User ID to message"
+                    />
+                  </div>
+                  <div class="input-group">
+                    <label for="peerMsg">Message:</label>
+                    <input
+                      id="peerMsg"
+                      type="text"
+                      placeholder="Peer message text"
+                    />
+                  </div>
+                  <button id="sendPeerMsgBtn" disabled>Send P2P Message</button>
+                </div>
+                <div class="chat-box" id="peerChatBox"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div id="app">
+      <!-- Our main logic -->
+    </div>
+  </body>
+</html>
