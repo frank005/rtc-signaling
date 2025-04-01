@@ -5,10 +5,12 @@
 }
 
 body {
+  margin: 0;
+  padding: 20px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #1a1b26;
+  color: #ffffff;
   line-height: 1.6;
-  color: #333;
-  background-color: #f5f5f5;
 }
 
 .container {
@@ -23,9 +25,9 @@ header {
   align-items: center;
   margin-bottom: 30px;
   padding: 20px;
-  background: white;
+  background: #24283b;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .header-controls {
@@ -35,7 +37,7 @@ header {
 }
 
 h1 {
-  color: #2c3e50;
+  color: #89b4fa;
   font-size: 1.8em;
 }
 
@@ -47,10 +49,10 @@ h1 {
 
 /* Video Section */
 .video-section {
-  background: white;
+  background: #24283b;
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .video-container {
@@ -68,9 +70,10 @@ h1 {
   position: relative;
   flex: 1;
   aspect-ratio: 16/9;
-  background-color: #000;
+  background-color: #16161e;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid #414868;
 }
 
 .video-player video {
@@ -102,10 +105,10 @@ h1 {
 
 /* Chat Section */
 .chat-section {
-  background: white;
+  background: #24283b;
   border-radius: 8px;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .channel-controls {
@@ -116,7 +119,7 @@ h1 {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid #414868;
   padding-bottom: 10px;
 }
 
@@ -126,13 +129,13 @@ h1 {
   border: none;
   padding: 8px 16px;
   cursor: pointer;
-  color: #666;
+  color: #a5adce;
   font-size: 14px;
 }
 
 .tab-btn.active {
-  color: #3498db;
-  border-bottom: 2px solid #3498db;
+  color: #89b4fa;
+  border-bottom: 2px solid #89b4fa;
 }
 
 .message-notification {
@@ -188,7 +191,7 @@ h1 {
 
 .modal-content {
   position: relative;
-  background-color: white;
+  background-color: #24283b;
   margin: 15% auto;
   padding: 20px;
   width: 90%;
@@ -205,39 +208,38 @@ h1 {
 label {
   display: block;
   margin-bottom: 5px;
-  color: #666;
+  color: #cdd6f4;
 }
 
-input[type="text"] {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
+input, select {
+  background-color: #16161e;
+  border: 1px solid #414868;
+  color: #ffffff;
+  padding: 5px;
   border-radius: 4px;
-  font-size: 14px;
 }
 
 button {
-  background-color: #3498db;
-  color: white;
-  border: none;
+  background-color: #414868;
+  color: #ffffff;
+  border: 1px solid #565f89;
   padding: 8px 16px;
-  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
+  border-radius: 4px;
 }
 
 button:hover {
-  background-color: #2980b9;
+  background-color: #565f89;
 }
 
 button:disabled {
-  background-color: #bdc3c7;
-  cursor: not-allowed;
+  background-color: #1a1b26;
+  color: #6c7086;
+  border-color: #414868;
 }
 
 .status-text {
-  color: #666;
+  color: #a5adce;
   font-size: 14px;
 }
 
@@ -246,19 +248,20 @@ button:disabled {
   margin-bottom: 10px;
   padding: 10px;
   border-radius: 8px;
-  background-color: #f8f9fa;
+  background-color: #24283b;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   font-size: 14px;
   line-height: 1.4;
+  color: #ffffff;
 }
 
 .chat-message[data-sender="self"] {
-  background-color: #e3f2fd;
+  background-color: #2c3047;
   margin-left: 20%;
 }
 
 .chat-message[data-sender="other"] {
-  background-color: #f5f5f5;
+  background-color: #24283b;
   margin-right: 20%;
 }
 
@@ -289,25 +292,26 @@ button:disabled {
 }
 
 .presence-indicator.online {
-  background-color: #2ecc71;
+  background-color: #9ece6a;
 }
 
 .presence-indicator.offline {
-  background-color: #e74c3c;
+  background-color: #f7768e;
 }
 
 /* Participants List */
 .participants-list {
   margin-bottom: 20px;
   padding: 15px;
-  background-color: #f8f9fa;
+  background-color: #24283b;
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #414868;
+  border-top: 1px solid #404040;
 }
 
 .participants-list h3 {
   margin-bottom: 12px;
-  color: #2c3e50;
+  color: #ffffff;
   font-size: 1.1em;
   font-weight: 600;
 }
@@ -319,9 +323,9 @@ button:disabled {
   max-height: 200px;
   overflow-y: auto;
   padding: 8px;
-  background-color: white;
+  background-color: #1e1e2e;
   border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #414868;
 }
 
 .participant-item {
@@ -329,15 +333,16 @@ button:disabled {
   align-items: center;
   gap: 10px;
   padding: 10px 15px;
-  background-color: white;
+  background-color: #24283b;
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #414868;
+  border-bottom: 1px solid #404040;
 }
 
 .participant-item:hover {
-  background-color: #e3f2fd;
+  background-color: #2c3047;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
@@ -351,7 +356,7 @@ button:disabled {
 
 .participant-item span:last-child {
   font-size: 14px;
-  color: #2c3e50;
+  color: #ffffff;
   font-weight: 500;
 }
 
@@ -375,6 +380,7 @@ button:disabled {
 /* Device Modal Specific Styles */
 #deviceModal .modal-content {
   max-width: 400px;
+  padding: 25px;
 }
 
 #deviceModal .input-group {
@@ -384,8 +390,32 @@ button:disabled {
 #deviceModal label {
   display: block;
   margin-bottom: 8px;
-  color: #2c3e50;
+  color: #ffffff;
   font-weight: 500;
+  font-size: 14px;
+}
+
+#deviceModal select,
+#deviceModal input {
+  width: 100%;
+  padding: 10px;
+  background-color: #1e1e2e;
+  border: 1px solid #565f89;
+  color: #ffffff;
+  font-size: 14px;
+}
+
+/* Login/Device Settings Input Styles */
+.select-input,
+input[type="text"] {
+  width: 100%;
+  max-width: 300px;
+  padding: 8px;
+  border: 1px solid #414868;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: #1e1e2e;
+  color: #ffffff;
 }
 
 .additional-videos {
@@ -407,4 +437,36 @@ button:disabled {
     grid-auto-flow: row;
     grid-auto-rows: 240px;
   }
+}
+
+.chat-container {
+  background-color: #24283b;
+  border: 1px solid #414868;
+}
+
+.chat-messages {
+  border-bottom: 1px solid #414868;
+}
+
+.chat-input {
+  background-color: #24283b;
+  border-top: 1px solid #414868;
+}
+
+.chat-input input {
+  background-color: #16161e;
+}
+
+.participants-window {
+  background-color: #24283b;
+  border: 1px solid #414868;
+}
+
+.participant {
+  border-bottom: 1px solid #414868;
+  cursor: pointer;
+}
+
+.participant:hover {
+  background-color: #2c3047;
 }
