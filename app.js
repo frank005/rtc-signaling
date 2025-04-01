@@ -1,4 +1,3 @@
-import AgoraRTM from "agora-rtm-sdk";
 /******************************
  * Agora RTM 2.x DEMO (Signaling 2.x)
  ******************************/
