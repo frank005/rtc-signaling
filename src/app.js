@@ -76,16 +76,44 @@ let unreadPeerMessages = 0;
 const channelTab = document.querySelector('[data-tab="channel"]');
 const peerTab = document.querySelector('[data-tab="peer"]');
 
+// Add new variables for video management
+const additionalVideos = document.getElementById("additionalVideos");
+let remoteVideos = new Map(); // Map to track remote video elements
+
 // Update the video elements to include labels
 const localVideoLabel = document.createElement("div");
 localVideoLabel.className = "video-label";
-localVideoLabel.textContent = "Local Video";
+localVideoLabel.textContent = userIdInput.value || "Local Video";
 localVideo.appendChild(localVideoLabel);
 
-const remoteVideoLabel = document.createElement("div");
-remoteVideoLabel.className = "video-label";
-remoteVideoLabel.textContent = "Remote Video";
-remoteVideo.appendChild(remoteVideoLabel);
+// Function to create a new video element with label
+function createVideoElement(userId) {
+  const videoElement = document.createElement("div");
+  videoElement.className = "video-player";
+  
+  const videoLabel = document.createElement("div");
+  videoLabel.className = "video-label";
+  videoLabel.textContent = userId;
+  videoElement.appendChild(videoLabel);
+  
+  return videoElement;
+}
+
+// Function to update video labels
+function updateVideoLabels() {
+  // Update local video label with current user ID
+  if (userIdInput.value) {
+    localVideoLabel.textContent = userIdInput.value;
+  }
+  
+  // Update remote video labels
+  remoteVideos.forEach((video, userId) => {
+    const label = video.querySelector(".video-label");
+    if (label) {
+      label.textContent = userId;
+    }
+  });
+}
 
 // Add new RTC control buttons
 const joinChannelBtn = document.getElementById("joinChannelBtn");
@@ -208,6 +236,7 @@ subscribeBtn.addEventListener("click", async () => {
   }
 
   try {
+    subscribedChannel = channelName;
     // Subscribe to RTM channel
     await rtmClient.subscribe(channelName, {
       withMessage: true,
@@ -215,7 +244,6 @@ subscribeBtn.addEventListener("click", async () => {
       withMetadata: false,
       withLock: false,
     });
-    subscribedChannel = channelName;
     channelStatus.textContent = `Subscribed to "${channelName}"`;
     addChatMessage(channelChatBox, `You subscribed to channel: ${channelName}`);
 
@@ -304,37 +332,67 @@ sendPeerMsgBtn.addEventListener("click", async () => {
 /** Handle channel messages from RTM 2.x events. */
 function handleRtmChannelMessage(evt) {
   const { channelType, channelName, publisher, message } = evt;
-  // The event might also have topicName, messageType, customType, publishTime, etc.
-
+  
+  // Format timestamp
+  const timestamp = new Date().toLocaleTimeString();
+  
   // If it's your personal inbox => that's a "peer message"
   if (channelName === localInbox) {
-    addChatMessage(peerChatBox, `[From ${publisher}]: ${message}`);
+    addChatMessage(peerChatBox, `[${timestamp}] [From ${publisher}]: ${message}`);
     return;
   }
 
-  // Otherwise, it's a normal channel
-  addChatMessage(channelChatBox, `[${publisher}]: ${message}`);
+  // Skip if the message is from the current user (we already showed it locally)
+  if (publisher === userIdInput.value) {
+    return;
+  }
+
+  // Otherwise, it's a normal channel message
+  addChatMessage(channelChatBox, `[${timestamp}] [${publisher}]: ${message}`);
 }
 
 /** Handle presence events (join/leave/timeouts) from RTM 2.x. */
 function handleRtmPresenceEvent(evt) {
-  const { eventType, publisher, channelName } = evt;
+  const { eventType, publisher, channelName, timestamp, snapshot } = evt;
+  
+  // Format timestamp
+  const timeStr = new Date(parseInt(timestamp)).toLocaleTimeString();
 
   if (channelName === subscribedChannel) {
-    if (eventType === "JOIN") {
-      participants.add(publisher);
-      // Update remote video label when user joins
-      remoteVideoLabel.textContent = publisher;
-      addChatMessage(channelChatBox, `${publisher} joined the channel`);
+    // Handle snapshot event
+    if (eventType === "SNAPSHOT" && snapshot) {
+      // Clear existing participants
+      participants.clear();
+      
+      // Add all users from snapshot except current user
+      snapshot.forEach(user => {
+        if (user.userId !== userIdInput.value) {
+          participants.add(user.userId);
+          addChatMessage(channelChatBox, `[${timeStr}] [System] ${user.userId} is online`);
+        }
+      });
+      
       updateParticipantsList();
-    } else if (eventType === "LEAVE" || eventType === "TIMEOUT") {
-      participants.delete(publisher);
-      // Reset remote video label when user leaves
-      if (participants.size === 0) {
-        remoteVideoLabel.textContent = "Remote Video";
+      return;
+    }
+
+    // Handle join events (both initial and remote)
+    if (eventType === "JOIN" || eventType === "REMOTE_JOIN") {
+      // Skip if it's our own join event
+      if (publisher !== userIdInput.value) {
+        participants.add(publisher);
+        addChatMessage(channelChatBox, `[${timeStr}] [System] ${publisher} joined the channel`);
+        updateParticipantsList();
       }
-      addChatMessage(channelChatBox, `${publisher} left the channel`);
-      updateParticipantsList();
+    } 
+    // Handle leave events (both types) and timeouts
+    else if (eventType === "LEAVE" || eventType === "REMOTE_LEAVE" || eventType === "REMOTE_TIMEOUT") {
+      // Skip if it's our own leave event
+      if (publisher !== userIdInput.value) {
+        participants.delete(publisher);
+        addChatMessage(channelChatBox, `[${timeStr}] [System] ${publisher} left the channel`);
+        updateParticipantsList();
+      }
     }
   }
 }
@@ -351,17 +409,54 @@ async function initializeRTC(appId, token, userId) {
     // Set up RTC event listeners
     rtcClient.on("user-published", async (user, mediaType) => {
       await rtcClient.subscribe(user, mediaType);
+      
+      // Create or get video element for this user
+      let videoElement;
+      if (!remoteVideos.has(user.uid)) {
+        videoElement = createVideoElement(user.uid);
+        remoteVideos.set(user.uid, videoElement);
+        updateVideoGrid();
+      } else {
+        videoElement = remoteVideos.get(user.uid);
+      }
+      
       if (mediaType === "video") {
-        user.videoTrack.play(remoteVideo);
+        user.videoTrack.play(videoElement);
       }
       else if (mediaType === "audio") {
         user.audioTrack.play();
       }
     });
 
-    rtcClient.on("user-unpublished", (user) => {
-      if (user.videoTrack) {
+    rtcClient.on("user-unpublished", (user, mediaType) => {
+      // Only stop the specific track type that was unpublished
+      if (mediaType === "video" && user.videoTrack) {
         user.videoTrack.stop();
+        
+        // Remove video element if it exists
+        if (remoteVideos.has(user.uid)) {
+          const video = remoteVideos.get(user.uid);
+          if (video.parentNode) {
+            video.parentNode.removeChild(video);
+          }
+          remoteVideos.delete(user.uid);
+          updateVideoGrid();
+        }
+      }
+      else if (mediaType === "audio" && user.audioTrack) {
+        user.audioTrack.stop();
+      }
+    });
+
+    // Also handle user-left event to remove video tiles
+    rtcClient.on("user-left", (user) => {
+      if (remoteVideos.has(user.uid)) {
+        const video = remoteVideos.get(user.uid);
+        if (video.parentNode) {
+          video.parentNode.removeChild(video);
+        }
+        remoteVideos.delete(user.uid);
+        updateVideoGrid();
       }
     });
 
@@ -494,7 +589,9 @@ function updatePresenceIndicator(isOnline) {
 }
 
 function updateParticipantsList() {
+  const participantsList = document.getElementById("participantsList");
   participantsList.innerHTML = "";
+  
   participants.forEach((participant) => {
     const participantElement = document.createElement("div");
     participantElement.className = "participant-item";
@@ -502,12 +599,26 @@ function updateParticipantsList() {
       <span class="presence-indicator online"></span>
       <span>${participant}</span>
     `;
+    
+    // Add click handler to populate peer chat
     participantElement.addEventListener("click", () => {
       peerIdInput.value = participant;
-      switchTab("peer");
-      addChatMessage(peerChatBox, `Selected peer: ${participant}`);
+      // Switch to peer chat tab
+      const peerTab = document.querySelector('[data-tab="peer"]');
+      if (peerTab) {
+        peerTab.click();
+      }
     });
+    
     participantsList.appendChild(participantElement);
+  });
+  
+  // Update remote video labels if needed
+  remoteVideos.forEach((video, userId) => {
+    const label = video.querySelector(".video-label");
+    if (label && participants.has(userId)) {
+      label.textContent = userId;
+    }
   });
 }
 
@@ -607,13 +718,13 @@ joinChannelBtn.addEventListener("click", async () => {
     // Publish tracks
     await rtcClient.publish([localAudioTrack, localVideoTrack]);
     
-    // Enable controls
+    // Enable controls and set initial states
     joinChannelBtn.disabled = true;
     leaveChannelBtn.disabled = false;
     toggleVideoBtn.disabled = false;
     toggleAudioBtn.disabled = false;
     
-    // Set initial button text
+    // Set initial button text based on track states
     toggleVideoBtn.textContent = "Mute Video";
     toggleAudioBtn.textContent = "Mute Audio";
     
@@ -636,6 +747,12 @@ leaveChannelBtn.addEventListener("click", async () => {
       localVideoTrack.close();
     }
     
+    // Clear remote videos
+    remoteVideos.forEach((video) => {
+      video.innerHTML = "";
+    });
+    remoteVideos.clear();
+    
     // Leave channel
     await rtcClient.leave();
     
@@ -652,19 +769,58 @@ leaveChannelBtn.addEventListener("click", async () => {
   }
 });
 
-// Update the toggle handlers to properly handle audio and video separately
-toggleVideoBtn.addEventListener("click", () => {
-  if (localVideoTrack) {
-    const isEnabled = localVideoTrack.enabled;
-    localVideoTrack.setEnabled(!isEnabled);
-    toggleVideoBtn.textContent = isEnabled ? "Mute Video" : "Unmute Video";
+// Add event listeners for toggle buttons
+toggleVideoBtn.addEventListener("click", async () => {
+  if (!localVideoTrack) return;
+  
+  const enabled = !localVideoTrack.enabled;
+  await localVideoTrack.setEnabled(enabled);
+  toggleVideoBtn.textContent = enabled ? "Mute Video" : "Unmute Video";
+  
+  // If disabled, stop publishing the video track
+  if (!enabled) {
+    await rtcClient.unpublish([localVideoTrack]);
+  } else {
+    await rtcClient.publish([localVideoTrack]);
   }
 });
 
-toggleAudioBtn.addEventListener("click", () => {
-  if (localAudioTrack) {
-    const isEnabled = localAudioTrack.enabled;
-    localAudioTrack.setEnabled(!isEnabled);
-    toggleAudioBtn.textContent = isEnabled ? "Mute Audio" : "Unmute Audio";
+toggleAudioBtn.addEventListener("click", async () => {
+  if (!localAudioTrack) return;
+  
+  const enabled = !localAudioTrack.enabled;
+  await localAudioTrack.setEnabled(enabled);
+  toggleAudioBtn.textContent = enabled ? "Mute Audio" : "Unmute Audio";
+  
+  // If disabled, stop publishing the audio track
+  if (!enabled) {
+    await rtcClient.unpublish([localAudioTrack]);
+  } else {
+    await rtcClient.publish([localAudioTrack]);
   }
 });
+
+// Function to update video grid layout
+function updateVideoGrid() {
+  const additionalVideosContainer = document.getElementById("additionalVideos");
+  const remoteVideoDiv = document.getElementById("remoteVideo");
+  
+  // Clear containers
+  additionalVideosContainer.innerHTML = "";
+  remoteVideoDiv.innerHTML = "";
+  
+  // Convert Map to Array for easier handling
+  const remoteUsers = Array.from(remoteVideos.entries());
+  
+  // Handle first remote user (if any)
+  if (remoteUsers.length > 0) {
+    const [firstUserId, firstVideo] = remoteUsers[0];
+    remoteVideoDiv.appendChild(firstVideo);
+  }
+  
+  // Handle additional users (if any)
+  for (let i = 1; i < remoteUsers.length; i++) {
+    const [userId, video] = remoteUsers[i];
+    additionalVideosContainer.appendChild(video);
+  }
+}
