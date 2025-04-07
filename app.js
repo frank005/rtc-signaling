@@ -260,30 +260,8 @@ subscribeBtn.addEventListener("click", async () => {
 
 /** Unsubscribe from the currently subscribed channel. */
 unsubscribeBtn.addEventListener("click", async () => {
-  if (!rtmClient || !subscribedChannel) return;
-  try {
-    // Leave RTC channel first if we're in it
-    if (rtcClient) {
-      await rtcClient.leave();
-      joinChannelBtn.disabled = false;
-      leaveChannelBtn.disabled = true;
-      toggleVideoBtn.disabled = true;
-      toggleAudioBtn.disabled = true;
-    }
-
-    // Then unsubscribe from RTM channel
-    await rtmClient.unsubscribe(subscribedChannel);
-    addChatMessage(channelChatBox, `Unsubscribed from ${subscribedChannel}`);
-    channelStatus.textContent = "Not subscribed to any channel";
-    subscribedChannel = null;
-    subscribeBtn.disabled = false;
-    unsubscribeBtn.disabled = true;
-    sendChannelMsgBtn.disabled = true;
-    participants.clear();
-    updateParticipantsList();
-  } catch (err) {
-    console.error("Unsubscribe error:", err);
-  }
+  console.log("Unsubscribe button clicked");
+  await unsubscribe();
 });
 
 /** Publish a message to the subscribed channel. */
@@ -408,52 +386,41 @@ async function initializeRTC(appId, token, userId) {
     // Set up RTC event listeners
     rtcClient.on("user-published", async (user, mediaType) => {
       await rtcClient.subscribe(user, mediaType);
-      
-      // Create or get video element for this user
-      let videoElement;
-      if (!remoteVideos.has(user.uid)) {
-        videoElement = createVideoElement(user.uid);
-        remoteVideos.set(user.uid, videoElement);
-        updateVideoGrid();
-      } else {
-        videoElement = remoteVideos.get(user.uid);
-      }
-      
+      console.log("Subscribe success");
+
       if (mediaType === "video") {
+        // Create or get video element for this user
+        let videoElement;
+        if (!remoteVideos.has(user.uid)) {
+          videoElement = createVideoElement(user.uid);
+          remoteVideos.set(user.uid, videoElement);
+          updateVideoGrid();
+        } else {
+          videoElement = remoteVideos.get(user.uid);
+        }
         user.videoTrack.play(videoElement);
       }
-      else if (mediaType === "audio") {
+      if (mediaType === "audio") {
         user.audioTrack.play();
       }
     });
 
     rtcClient.on("user-unpublished", (user, mediaType) => {
-      // Only stop the specific track type that was unpublished
-      if (mediaType === "video" && user.videoTrack) {
-        user.videoTrack.stop();
-        
-        // Remove video element if it exists
-        if (remoteVideos.has(user.uid)) {
-          const video = remoteVideos.get(user.uid);
-          if (video.parentNode) {
-            video.parentNode.removeChild(video);
-          }
+      if (mediaType === "video") {
+        const videoElement = remoteVideos.get(user.uid);
+        if (videoElement) {
+          user.videoTrack.stop();
+          videoElement.remove();
           remoteVideos.delete(user.uid);
           updateVideoGrid();
         }
       }
-      else if (mediaType === "audio" && user.audioTrack) {
-        user.audioTrack.stop();
-      }
     });
 
-    // Also handle user-left event to remove video tiles
     rtcClient.on("user-left", (user) => {
-      if (remoteVideos.has(user.uid)) {
-        const video = remoteVideos.get(user.uid);
-        if (video.parentNode) {
-          video.parentNode.removeChild(video);
-        }
+      const videoElement = remoteVideos.get(user.uid);
+      if (videoElement) {
+        videoElement.remove();
         remoteVideos.delete(user.uid);
         updateVideoGrid();
       }
@@ -735,27 +702,55 @@ joinChannelBtn.addEventListener("click", async () => {
   }
 });
 
+// Update the leave channel handler
 leaveChannelBtn.addEventListener("click", async () => {
   if (!rtcClient) return;
   try {
+    console.log("Leave channel button clicked");
+    
     // Unpublish tracks
     if (localAudioTrack) {
+      console.log("Stopping local audio track");
+      localAudioTrack.stop();
       localAudioTrack.close();
-    }
-    if (localVideoTrack) {
-      localVideoTrack.close();
+      localAudioTrack = null;
     }
     
+    if (localVideoTrack) {
+      console.log("Stopping local video track");
+      localVideoTrack.stop();
+      localVideoTrack.close();
+      localVideoTrack = null;
+    }
+    
+    // Clear local video
+    console.log("Clearing local video element");
+    const localVideo = document.getElementById("localVideo");
+    localVideo.innerHTML = "";
+    
     // Clear remote videos
+    console.log("Clearing remote videos");
     remoteVideos.forEach((video) => {
-      video.innerHTML = "";
+      video.remove();
     });
     remoteVideos.clear();
     
+    // Clear additional videos container
+    console.log("Clearing additional videos container");
+    document.getElementById("additionalVideos").innerHTML = "";
+    
+    // Hide remote video container
+    console.log("Clearing remote video container");
+    const remoteVideo = document.getElementById("remoteVideo");
+    remoteVideo.innerHTML = "";
+    remoteVideo.classList.remove("visible");
+    
     // Leave channel
+    console.log("Leaving RTC channel");
     await rtcClient.leave();
     
     // Reset UI
+    console.log("Resetting UI");
     joinChannelBtn.disabled = false;
     leaveChannelBtn.disabled = true;
     toggleVideoBtn.disabled = true;
@@ -763,10 +758,89 @@ leaveChannelBtn.addEventListener("click", async () => {
     
     channelStatus.textContent = "Left RTC channel";
     addChatMessage(channelChatBox, "Left RTC channel");
+    
+    console.log("Leave channel complete");
   } catch (err) {
     console.error("Failed to leave RTC channel:", err);
   }
 });
+
+// Update the unsubscribe handler
+async function unsubscribe() {
+  try {
+    console.log("Unsubscribing from channel...");
+    
+    // First, stop and close local tracks
+    if (localAudioTrack) {
+      console.log("Stopping local audio track");
+      localAudioTrack.stop();
+      localAudioTrack.close();
+      localAudioTrack = null;
+    }
+    
+    if (localVideoTrack) {
+      console.log("Stopping local video track");
+      localVideoTrack.stop();
+      localVideoTrack.close();
+      localVideoTrack = null;
+    }
+    
+    // Clear local video element
+    console.log("Clearing local video element");
+    const localVideo = document.getElementById("localVideo");
+    localVideo.innerHTML = "";
+    
+    // Clear remote videos
+    console.log("Clearing remote videos");
+    remoteVideos.forEach((video) => {
+      video.remove();
+    });
+    remoteVideos.clear();
+    
+    // Clear additional videos container
+    console.log("Clearing additional videos container");
+    document.getElementById("additionalVideos").innerHTML = "";
+    
+    // Hide remote video container
+    console.log("Clearing remote video container");
+    const remoteVideo = document.getElementById("remoteVideo");
+    remoteVideo.innerHTML = "";
+    remoteVideo.classList.remove("visible");
+    
+    // Leave RTC channel
+    if (rtcClient) {
+      console.log("Leaving RTC channel");
+      await rtcClient.leave();
+    }
+    
+    // Unsubscribe from RTM channel
+    if (rtmClient && subscribedChannel) {
+      console.log("Unsubscribing from RTM channel");
+      await rtmClient.unsubscribe(subscribedChannel);
+      subscribedChannel = null;
+    }
+    
+    // Reset UI
+    console.log("Resetting UI");
+    joinChannelBtn.disabled = false;
+    leaveChannelBtn.disabled = true;
+    toggleVideoBtn.disabled = true;
+    toggleAudioBtn.disabled = true;
+    subscribeBtn.disabled = false;
+    unsubscribeBtn.disabled = true;
+    sendChannelMsgBtn.disabled = true;
+    sendPeerMsgBtn.disabled = true;
+    
+    document.getElementById("channelStatus").textContent = "Unsubscribed from channel";
+    document.getElementById("channelChatBox").innerHTML = "";
+    document.getElementById("peerChatBox").innerHTML = "";
+    document.getElementById("participantsList").innerHTML = "";
+    
+    console.log("Unsubscribe complete");
+  } catch (error) {
+    console.error("Error unsubscribing:", error);
+  }
+}
 
 // Add event listeners for toggle buttons
 toggleVideoBtn.addEventListener("click", async () => {
@@ -815,6 +889,9 @@ function updateVideoGrid() {
   if (remoteUsers.length > 0) {
     const [firstUserId, firstVideo] = remoteUsers[0];
     remoteVideoDiv.appendChild(firstVideo);
+    remoteVideoDiv.classList.add("visible");
+  } else {
+    remoteVideoDiv.classList.remove("visible");
   }
   
   // Handle additional users (if any)
@@ -822,4 +899,25 @@ function updateVideoGrid() {
     const [userId, video] = remoteUsers[i];
     additionalVideosContainer.appendChild(video);
   }
+}
+
+// Update the updateUIForDisconnected function
+function updateUIForDisconnected() {
+  document.getElementById("joinChannelBtn").disabled = true;
+  document.getElementById("leaveChannelBtn").disabled = true;
+  document.getElementById("toggleAudioBtn").disabled = true;
+  document.getElementById("toggleVideoBtn").disabled = true;
+  document.getElementById("subscribeBtn").disabled = true;
+  document.getElementById("unsubscribeBtn").disabled = true;
+  document.getElementById("sendChannelMsgBtn").disabled = true;
+  document.getElementById("sendPeerMsgBtn").disabled = true;
+  
+  // Clear remote videos but keep local video
+  remoteVideos.clear();
+  updateVideoGrid();
+  
+  document.getElementById("channelStatus").textContent = "";
+  document.getElementById("channelChatBox").innerHTML = "";
+  document.getElementById("peerChatBox").innerHTML = "";
+  document.getElementById("participantsList").innerHTML = "";
 }
