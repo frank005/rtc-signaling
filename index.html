@@ -110,55 +110,35 @@
 
           <div class="chat-container">
             <div class="chat-tabs">
-              <button class="tab-btn active" data-tab="channel">
-                Channel Chat
-              </button>
+              <button class="tab-btn active" data-tab="channel">Channel Chat</button>
               <button class="tab-btn" data-tab="peer">Peer Chat</button>
             </div>
 
-            <div class="chat-content">
-              <!-- Channel Chat -->
+            <!-- Participants List with heading -->
+            <div class="participants-list">
+              <h3>Participants</h3>
+              <div id="participantsList" class="participants-container">
+                <!-- Participants will be added here dynamically -->
+              </div>
+            </div>
+
+            <div class="chat-panels">
+              <!-- Channel Chat Panel -->
               <div id="channelChat" class="chat-panel active">
-                <div class="participants-list">
-                  <h3>Participants</h3>
-                  <div
-                    id="participantsList"
-                    class="participants-container"
-                  ></div>
-                </div>
                 <div class="chat-box" id="channelChatBox"></div>
-                <div class="message-bar">
-                  <input
-                    type="text"
-                    id="channelMsg"
-                    placeholder="Type channel message..."
-                  />
+                <div class="chat-input">
+                  <input type="text" id="channelMsg" placeholder="Type a message..." />
                   <button id="sendChannelMsgBtn" disabled>Send</button>
                 </div>
               </div>
 
-              <!-- Peer Chat -->
+              <!-- Peer Chat Panel -->
               <div id="peerChat" class="chat-panel">
-                <div class="peer-inputs">
-                  <div class="input-group">
-                    <label for="peerId">Peer ID:</label>
-                    <input
-                      id="peerId"
-                      type="text"
-                      placeholder="User ID to message"
-                    />
-                  </div>
-                  <div class="input-group">
-                    <label for="peerMsg">Message:</label>
-                    <input
-                      id="peerMsg"
-                      type="text"
-                      placeholder="Peer message text"
-                    />
-                  </div>
-                  <button id="sendPeerMsgBtn" disabled>Send P2P Message</button>
-                </div>
                 <div class="chat-box" id="peerChatBox"></div>
+                <div class="chat-input">
+                  <input type="text" id="peerMsg" placeholder="Type a message..." />
+                  <button id="sendPeerMsgBtn" disabled>Send</button>
+                </div>
               </div>
             </div>
           </div>

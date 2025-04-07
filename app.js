@@ -79,11 +79,29 @@ const peerTab = document.querySelector('[data-tab="peer"]');
 const additionalVideos = document.getElementById("additionalVideos");
 let remoteVideos = new Map(); // Map to track remote video elements
 
-// Update the video elements to include labels
+// Add a map to track active peer chats
+const activePeerChats = new Map();
+
+// Add variables to track the selected peer
+let selectedPeer = null;
+
+// Update the localVideoLabel creation to be a function
 const localVideoLabel = document.createElement("div");
 localVideoLabel.className = "video-label";
 localVideoLabel.textContent = userIdInput.value || "Local Video";
 localVideo.appendChild(localVideoLabel);
+
+// Function to reset local video element with label
+function resetLocalVideo() {
+  const localVideo = document.getElementById("localVideo");
+  localVideo.innerHTML = "";
+  
+  // Recreate the local video label
+  const localVideoLabel = document.createElement("div");
+  localVideoLabel.className = "video-label";
+  localVideoLabel.textContent = userIdInput.value || "Local Video";
+  localVideo.appendChild(localVideoLabel);
+}
 
 // Function to create a new video element with label
 function createVideoElement(userId) {
@@ -93,6 +111,12 @@ function createVideoElement(userId) {
   const videoLabel = document.createElement("div");
   videoLabel.className = "video-label";
   videoLabel.textContent = userId;
+  
+  // Apply user color to the video label if it's not the current user
+  if (userId !== userIdInput.value) {
+    videoLabel.style.color = getUserColor(userId);
+  }
+  
   videoElement.appendChild(videoLabel);
   
   return videoElement;
@@ -120,11 +144,93 @@ const leaveChannelBtn = document.getElementById("leaveChannelBtn");
 const toggleAudioBtn = document.getElementById("toggleAudioBtn");
 const toggleVideoBtn = document.getElementById("toggleVideoBtn");
 
+// Add a function to generate consistent colors based on user ID
+function getUserColor(userId) {
+  // List of colors (complementary to the dark theme)
+  const colors = [
+    "#89b4fa", // Blue
+    "#9ece6a", // Green
+    "#f7768e", // Red
+    "#bb9af7", // Purple
+    "#e0af68", // Orange
+    "#7dcfff", // Light Blue
+    "#ff9e64", // Light Orange
+    "#2ac3de", // Cyan
+    "#b4f9f8", // Teal
+    "#ff7a93"  // Pink
+  ];
+  
+  // Generate a consistent index based on the userId string
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  
+  // Get a consistent color from the array
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+}
+
 /** Append text message in any chatbox. */
 function addChatMessage(container, text) {
   const div = document.createElement("div");
   div.className = "chat-message";
-  div.textContent = text;
+  
+  // Format the message with proper styling
+  if (text.includes("[To ")) {
+    // Outgoing peer message
+    div.classList.add("message-to");
+    const parts = text.match(/\[To (.*?)\]: (.*)/);
+    if (parts && parts.length >= 3) {
+      const recipient = parts[1];
+      const message = parts[2];
+      div.innerHTML = `<span class="to">To ${recipient}:</span> ${message}`;
+    } else {
+      div.textContent = text;
+    }
+  } else if (text.includes("[From ")) {
+    // Incoming peer message
+    div.classList.add("message-from");
+    const parts = text.match(/\[.*?\] \[From (.*?)\]: (.*)/);
+    if (parts && parts.length >= 3) {
+      const sender = parts[1];
+      const message = parts[2];
+      const senderColor = getUserColor(sender);
+      div.innerHTML = `<span class="from" style="color: ${senderColor}">From ${sender}:</span> ${message}`;
+    } else {
+      div.textContent = text;
+    }
+  } else if (text.includes("[You]: ")) {
+    // Outgoing channel message
+    div.classList.add("message-to");
+    const parts = text.match(/\[You\]: (.*)/);
+    if (parts && parts.length >= 2) {
+      const message = parts[1];
+      div.innerHTML = `<span class="to">You:</span> ${message}`;
+    } else {
+      div.textContent = text;
+    }
+  } else if (text.match(/\[.*?\] \[(.*?)\]: (.*)/)) {
+    // Incoming channel message from other users
+    div.classList.add("message-from");
+    const parts = text.match(/\[.*?\] \[(.*?)\]: (.*)/);
+    if (parts && parts.length >= 3) {
+      const sender = parts[1];
+      const message = parts[2];
+      const senderColor = getUserColor(sender);
+      div.innerHTML = `<span class="from" style="color: ${senderColor}">${sender}:</span> ${message}`;
+    } else {
+      div.textContent = text;
+    }
+  } else if (text.includes("[System]")) {
+    // System messages
+    div.classList.add("message-system");
+    div.textContent = text;
+  } else {
+    // Regular message
+    div.textContent = text;
+  }
+  
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
 }
@@ -244,7 +350,10 @@ subscribeBtn.addEventListener("click", async () => {
       withLock: false,
     });
     channelStatus.textContent = `Subscribed to "${channelName}"`;
-    addChatMessage(channelChatBox, `You subscribed to channel: ${channelName}`);
+    
+    // Add a system message with subscription status
+    const timestamp = new Date().toLocaleTimeString();
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You subscribed to channel: ${channelName}`);
 
     // Enable UI
     subscribeBtn.disabled = true;
@@ -266,44 +375,14 @@ unsubscribeBtn.addEventListener("click", async () => {
 
 /** Publish a message to the subscribed channel. */
 sendChannelMsgBtn.addEventListener("click", async () => {
-  if (!rtmClient || !subscribedChannel) {
-    alert("Subscribe to a channel first!");
-    return;
-  }
-  const msg = channelMsgInput.value.trim();
-  if (!msg) return;
-  try {
-    await rtmClient.publish(subscribedChannel, msg);
-    addChatMessage(channelChatBox, `[You]: ${msg}`);
-    channelMsgInput.value = "";
-  } catch (err) {
-    console.error("Publish error:", err);
-  }
+  // Call the shared sendChannelMessage function 
+  // instead of duplicating the message sending logic
+  await sendChannelMessage();
 });
 
 /** Send a direct P2P message by publishing to "inbox_<peerId>" channel. */
 sendPeerMsgBtn.addEventListener("click", async () => {
-  if (!rtmClient) {
-    alert("Login first!");
-    return;
-  }
-  const peerId = peerIdInput.value.trim();
-  if (!peerId) {
-    alert("Peer ID is required");
-    return;
-  }
-  const message = peerMsgInput.value.trim();
-  if (!message) return;
-
-  // P2P is just "publish" to their "inbox_peerID" channel
-  const peerInbox = "inbox_" + peerId;
-  try {
-    await rtmClient.publish(peerInbox, message);
-    addChatMessage(peerChatBox, `[To ${peerId}]: ${message}`);
-    peerMsgInput.value = "";
-  } catch (err) {
-    console.error("Send peer message error:", err);
-  }
+  await sendPeerMessage();
 });
 
 /** Handle channel messages from RTM 2.x events. */
@@ -313,19 +392,33 @@ function handleRtmChannelMessage(evt) {
   // Format timestamp
   const timestamp = new Date().toLocaleTimeString();
   
-  // If it's your personal inbox => that's a "peer message"
-  if (channelName === localInbox) {
-    addChatMessage(peerChatBox, `[${timestamp}] [From ${publisher}]: ${message}`);
+  // Handle USER channel messages
+  if (channelType === "USER") {
+    // If this is a message from a peer
+    if (publisher !== userIdInput.value) {
+      // Include sender name in the message for clarity
+      addChatMessage(peerChatBox, `[${timestamp}] [From ${publisher}]: ${message}`);
+      
+      // Auto-select the peer if not already selected
+      if (!selectedPeer) {
+        selectedPeer = publisher;
+        updateParticipantsList();
+      }
+      
+      // Track this peer chat if not already tracked
+      if (!activePeerChats.has(publisher)) {
+        activePeerChats.set(publisher, true);
+      }
+    }
     return;
   }
-
-  // Skip if the message is from the current user (we already showed it locally)
-  if (publisher === userIdInput.value) {
-    return;
+  
+  // Handle regular channel messages
+  if (channelName === subscribedChannel) {
+    if (publisher !== userIdInput.value) {
+      addChatMessage(channelChatBox, `[${timestamp}] [${publisher}]: ${message}`);
+    }
   }
-
-  // Otherwise, it's a normal channel message
-  addChatMessage(channelChatBox, `[${timestamp}] [${publisher}]: ${message}`);
 }
 
 /** Handle presence events (join/leave/timeouts) from RTM 2.x. */
@@ -334,7 +427,19 @@ function handleRtmPresenceEvent(evt) {
   
   // Format timestamp
   const timeStr = new Date(parseInt(timestamp)).toLocaleTimeString();
-
+  
+  // Handle USER channel presence events
+  if (channelName && activePeerChats.has(channelName)) {
+    if (eventType === "JOIN" || eventType === "REMOTE_JOIN") {
+      addChatMessage(peerChatBox, `[${timeStr}] [System] ${publisher} is online`);
+    } else if (eventType === "LEAVE" || eventType === "REMOTE_LEAVE" || eventType === "REMOTE_TIMEOUT") {
+      addChatMessage(peerChatBox, `[${timeStr}] [System] ${publisher} is offline`);
+      activePeerChats.delete(channelName);
+    }
+    return;
+  }
+  
+  // Handle regular channel presence events
   if (channelName === subscribedChannel) {
     // Handle snapshot event
     if (eventType === "SNAPSHOT" && snapshot) {
@@ -528,6 +633,9 @@ function switchTab(tabId) {
   chatPanels.forEach((panel) => {
     panel.classList.toggle("active", panel.id === `${tabId}Chat`);
   });
+  
+  // Keep participants list visible regardless of tab
+  document.getElementById("participantsList").style.display = "block";
 }
 
 // Event Listeners for Modal
@@ -561,19 +669,43 @@ function updateParticipantsList() {
   participants.forEach((participant) => {
     const participantElement = document.createElement("div");
     participantElement.className = "participant-item";
+    if (selectedPeer === participant) {
+      participantElement.classList.add("selected");
+    }
+    
+    // Get a color for this participant
+    const participantColor = getUserColor(participant);
+    
     participantElement.innerHTML = `
       <span class="presence-indicator online"></span>
-      <span>${participant}</span>
+      <span style="color: ${participantColor}">${participant}</span>
     `;
     
-    // Add click handler to populate peer chat
+    // Add click handler to select this peer
     participantElement.addEventListener("click", () => {
-      peerIdInput.value = participant;
+      selectedPeer = participant;
+      
+      // Update the UI to reflect the selection
+      document.querySelectorAll(".participant-item").forEach(item => {
+        item.classList.remove("selected");
+      });
+      participantElement.classList.add("selected");
+      
       // Switch to peer chat tab
-      const peerTab = document.querySelector('[data-tab="peer"]');
-      if (peerTab) {
-        peerTab.click();
+      document.querySelector('[data-tab="peer"]').click();
+      
+      // Update the peer chat title with the selected peer
+      const peerChatHeader = document.createElement("div");
+      peerChatHeader.className = "peer-chat-header";
+      peerChatHeader.style.color = participantColor;
+      peerChatHeader.textContent = `Chat with ${participant}`;
+      
+      const existingHeader = document.querySelector(".peer-chat-header");
+      if (existingHeader) {
+        existingHeader.remove();
       }
+      
+      document.getElementById("peerChat").insertBefore(peerChatHeader, document.getElementById("peerChatBox"));
     });
     
     participantsList.appendChild(participantElement);
@@ -584,6 +716,10 @@ function updateParticipantsList() {
     const label = video.querySelector(".video-label");
     if (label && participants.has(userId)) {
       label.textContent = userId;
+      // Apply the same color to video labels
+      if (userId !== userIdInput.value) {
+        label.style.color = getUserColor(userId);
+      }
     }
   });
 }
@@ -695,7 +831,10 @@ joinChannelBtn.addEventListener("click", async () => {
     toggleAudioBtn.textContent = "Mute Audio";
     
     channelStatus.textContent = `Joined RTC channel: ${channelName}`;
-    addChatMessage(channelChatBox, `Joined RTC channel: ${channelName}`);
+    
+    // Add a system message with join status
+    const timestamp = new Date().toLocaleTimeString();
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You joined RTC channel: ${channelName}`);
   } catch (err) {
     console.error("Failed to join RTC channel:", err);
     alert("Failed to join RTC channel. Please check your connection and try again.");
@@ -723,10 +862,9 @@ leaveChannelBtn.addEventListener("click", async () => {
       localVideoTrack = null;
     }
     
-    // Clear local video
-    console.log("Clearing local video element");
-    const localVideo = document.getElementById("localVideo");
-    localVideo.innerHTML = "";
+    // Reset local video with label
+    console.log("Resetting local video element");
+    resetLocalVideo();
     
     // Clear remote videos
     console.log("Clearing remote videos");
@@ -757,7 +895,10 @@ leaveChannelBtn.addEventListener("click", async () => {
     toggleAudioBtn.disabled = true;
     
     channelStatus.textContent = "Left RTC channel";
-    addChatMessage(channelChatBox, "Left RTC channel");
+    
+    // Add a system message with leave status
+    const timestamp = new Date().toLocaleTimeString();
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You left the RTC channel`);
     
     console.log("Leave channel complete");
   } catch (err) {
@@ -769,6 +910,11 @@ leaveChannelBtn.addEventListener("click", async () => {
 async function unsubscribe() {
   try {
     console.log("Unsubscribing from channel...");
+    
+    // Add a system message with unsubscribe status
+    const timestamp = new Date().toLocaleTimeString();
+    const channelName = subscribedChannel;
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You unsubscribed from channel: ${channelName}`);
     
     // First, stop and close local tracks
     if (localAudioTrack) {
@@ -785,10 +931,9 @@ async function unsubscribe() {
       localVideoTrack = null;
     }
     
-    // Clear local video element
-    console.log("Clearing local video element");
-    const localVideo = document.getElementById("localVideo");
-    localVideo.innerHTML = "";
+    // Reset local video element with label
+    console.log("Resetting local video element");
+    resetLocalVideo();
     
     // Clear remote videos
     console.log("Clearing remote videos");
@@ -820,6 +965,19 @@ async function unsubscribe() {
       subscribedChannel = null;
     }
     
+    // Clean up peer chats
+    for (const [peerId] of activePeerChats) {
+      try {
+        await rtmClient.unsubscribe(peerId);
+      } catch (err) {
+        console.error(`Error unsubscribing from peer ${peerId}:`, err);
+      }
+    }
+    activePeerChats.clear();
+    
+    // Reset selected peer
+    selectedPeer = null;
+    
     // Reset UI
     console.log("Resetting UI");
     joinChannelBtn.disabled = false;
@@ -835,6 +993,12 @@ async function unsubscribe() {
     document.getElementById("channelChatBox").innerHTML = "";
     document.getElementById("peerChatBox").innerHTML = "";
     document.getElementById("participantsList").innerHTML = "";
+    
+    // Remove peer chat header if it exists
+    const peerChatHeader = document.querySelector(".peer-chat-header");
+    if (peerChatHeader) {
+      peerChatHeader.remove();
+    }
     
     console.log("Unsubscribe complete");
   } catch (error) {
@@ -921,3 +1085,86 @@ function updateUIForDisconnected() {
   document.getElementById("peerChatBox").innerHTML = "";
   document.getElementById("participantsList").innerHTML = "";
 }
+
+// Add event listeners for enter key in message inputs
+document.getElementById("channelMsg").addEventListener("keypress", async (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    await sendChannelMessage();
+  }
+});
+
+document.getElementById("peerMsg").addEventListener("keypress", async (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    await sendPeerMessage();
+  }
+});
+
+// Extract message sending logic into separate functions
+async function sendChannelMessage() {
+  if (!rtmClient || !subscribedChannel) {
+    alert("Subscribe to a channel first!");
+    return;
+  }
+  const msg = document.getElementById("channelMsg").value.trim();
+  if (!msg) return;
+  try {
+    await rtmClient.publish(subscribedChannel, msg);
+    // Only add the message to the chat box once
+    addChatMessage(channelChatBox, `[You]: ${msg}`);
+    document.getElementById("channelMsg").value = "";
+  } catch (err) {
+    console.error("Publish error:", err);
+  }
+}
+
+// Update the sendPeerMessage function to clearly show recipient names
+async function sendPeerMessage() {
+  if (!rtmClient) {
+    alert("Login first!");
+    return;
+  }
+  
+  if (!selectedPeer) {
+    alert("Please select a participant to message");
+    return;
+  }
+  
+  const message = document.getElementById("peerMsg").value.trim();
+  if (!message) return;
+
+  try {
+    // Create publish options for USER channel type
+    const options = {
+      channelType: "USER"
+    };
+
+    // Publish to user channel
+    await rtmClient.publish(selectedPeer, message, options);
+    // Include recipient name in the message for clarity
+    addChatMessage(peerChatBox, `[To ${selectedPeer}]: ${message}`);
+    document.getElementById("peerMsg").value = "";
+
+    // Track this peer chat if not already tracked
+    if (!activePeerChats.has(selectedPeer)) {
+      activePeerChats.set(selectedPeer, true);
+      // Subscribe to presence events for this peer
+      try {
+        await rtmClient.subscribe(selectedPeer, {
+          withPresence: true,
+          withMessage: true
+        });
+      } catch (err) {
+        console.error(`Error subscribing to peer ${selectedPeer}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("Send peer message error:", err);
+    alert("Failed to send message: " + err.message);
+  }
+}
+
+// Update the send button event listeners to use the new functions
+document.getElementById("sendChannelMsgBtn").addEventListener("click", sendChannelMessage);
+document.getElementById("sendPeerMsgBtn").addEventListener("click", sendPeerMessage);
