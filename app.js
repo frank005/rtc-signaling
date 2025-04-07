@@ -373,17 +373,113 @@ unsubscribeBtn.addEventListener("click", async () => {
   await unsubscribe();
 });
 
-/** Publish a message to the subscribed channel. */
-sendChannelMsgBtn.addEventListener("click", async () => {
-  // Call the shared sendChannelMessage function 
-  // instead of duplicating the message sending logic
-  await sendChannelMessage();
+// Add a debounce function to prevent duplicate message sends
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), wait);
+  };
+}
+
+// Add event listeners for enter key in message inputs
+document.getElementById("channelMsg").addEventListener("keypress", async (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    await sendChannelMessage();
+  }
 });
 
-/** Send a direct P2P message by publishing to "inbox_<peerId>" channel. */
-sendPeerMsgBtn.addEventListener("click", async () => {
-  await sendPeerMessage();
+document.getElementById("peerMsg").addEventListener("keypress", async (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    await sendPeerMessage();
+  }
 });
+
+// Channel message sending logic
+async function sendChannelMessage() {
+  console.log("sendChannelMessage called");
+  if (!rtmClient || !subscribedChannel) {
+    alert("Subscribe to a channel first!");
+    return;
+  }
+  const msg = document.getElementById("channelMsg").value.trim();
+  if (!msg) return;
+  try {
+    console.log("Publishing channel message:", msg);
+    await rtmClient.publish(subscribedChannel, msg);
+    // Only add the message to the chat box once
+    addChatMessage(channelChatBox, `[You]: ${msg}`);
+    document.getElementById("channelMsg").value = "";
+  } catch (err) {
+    console.error("Publish error:", err);
+  }
+}
+
+// Peer message sending logic
+async function sendPeerMessage() {
+  console.log("sendPeerMessage called");
+  if (!rtmClient) {
+    alert("Login first!");
+    return;
+  }
+  
+  if (!selectedPeer) {
+    alert("Please select a participant to message");
+    return;
+  }
+  
+  const message = document.getElementById("peerMsg").value.trim();
+  if (!message) return;
+
+  try {
+    // Create publish options for USER channel type
+    const options = {
+      channelType: "USER"
+    };
+
+    console.log("Publishing peer message to:", selectedPeer);
+    // Publish to user channel
+    await rtmClient.publish(selectedPeer, message, options);
+    // Include recipient name in the message for clarity
+    addChatMessage(peerChatBox, `[To ${selectedPeer}]: ${message}`);
+    document.getElementById("peerMsg").value = "";
+
+    // Track this peer chat if not already tracked
+    if (!activePeerChats.has(selectedPeer)) {
+      activePeerChats.set(selectedPeer, true);
+      // Subscribe to presence events for this peer
+      try {
+        await rtmClient.subscribe(selectedPeer, {
+          withPresence: true,
+          withMessage: true
+        });
+      } catch (err) {
+        console.error(`Error subscribing to peer ${selectedPeer}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("Send peer message error:", err);
+    alert("Failed to send message: " + err.message);
+  }
+}
+
+// Remove all existing click event listeners
+document.getElementById("sendChannelMsgBtn").outerHTML = document.getElementById("sendChannelMsgBtn").outerHTML;
+document.getElementById("sendPeerMsgBtn").outerHTML = document.getElementById("sendPeerMsgBtn").outerHTML;
+
+// Add debounced event listeners for buttons
+document.getElementById("sendChannelMsgBtn").addEventListener("click", debounce(async () => {
+  console.log("Channel send button clicked (debounced)");
+  await sendChannelMessage();
+}, 300));
+
+document.getElementById("sendPeerMsgBtn").addEventListener("click", debounce(async () => {
+  console.log("Peer send button clicked (debounced)");
+  await sendPeerMessage();
+}, 300));
 
 /** Handle channel messages from RTM 2.x events. */
 function handleRtmChannelMessage(evt) {
@@ -1085,86 +1181,3 @@ function updateUIForDisconnected() {
   document.getElementById("peerChatBox").innerHTML = "";
   document.getElementById("participantsList").innerHTML = "";
 }
-
-// Add event listeners for enter key in message inputs
-document.getElementById("channelMsg").addEventListener("keypress", async (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    await sendChannelMessage();
-  }
-});
-
-document.getElementById("peerMsg").addEventListener("keypress", async (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    await sendPeerMessage();
-  }
-});
-
-// Extract message sending logic into separate functions
-async function sendChannelMessage() {
-  if (!rtmClient || !subscribedChannel) {
-    alert("Subscribe to a channel first!");
-    return;
-  }
-  const msg = document.getElementById("channelMsg").value.trim();
-  if (!msg) return;
-  try {
-    await rtmClient.publish(subscribedChannel, msg);
-    // Only add the message to the chat box once
-    addChatMessage(channelChatBox, `[You]: ${msg}`);
-    document.getElementById("channelMsg").value = "";
-  } catch (err) {
-    console.error("Publish error:", err);
-  }
-}
-
-// Update the sendPeerMessage function to clearly show recipient names
-async function sendPeerMessage() {
-  if (!rtmClient) {
-    alert("Login first!");
-    return;
-  }
-  
-  if (!selectedPeer) {
-    alert("Please select a participant to message");
-    return;
-  }
-  
-  const message = document.getElementById("peerMsg").value.trim();
-  if (!message) return;
-
-  try {
-    // Create publish options for USER channel type
-    const options = {
-      channelType: "USER"
-    };
-
-    // Publish to user channel
-    await rtmClient.publish(selectedPeer, message, options);
-    // Include recipient name in the message for clarity
-    addChatMessage(peerChatBox, `[To ${selectedPeer}]: ${message}`);
-    document.getElementById("peerMsg").value = "";
-
-    // Track this peer chat if not already tracked
-    if (!activePeerChats.has(selectedPeer)) {
-      activePeerChats.set(selectedPeer, true);
-      // Subscribe to presence events for this peer
-      try {
-        await rtmClient.subscribe(selectedPeer, {
-          withPresence: true,
-          withMessage: true
-        });
-      } catch (err) {
-        console.error(`Error subscribing to peer ${selectedPeer}:`, err);
-      }
-    }
-  } catch (err) {
-    console.error("Send peer message error:", err);
-    alert("Failed to send message: " + err.message);
-  }
-}
-
-// Update the send button event listeners to use the new functions
-document.getElementById("sendChannelMsgBtn").addEventListener("click", sendChannelMessage);
-document.getElementById("sendPeerMsgBtn").addEventListener("click", sendPeerMessage);
