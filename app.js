@@ -96,18 +96,78 @@ let cameraMuteIndicators = new Map();
 // Add new variables to track user states
 const userTrackStates = new Map(); // Map to track the state of each user's tracks
 
+// Add new variables for video stats
+const videoStatsIntervalMs = 1000; // Update interval for stats
+let videoStatsInterval = null;
+let videoStatsEnabled = false;
+const videoStatsOverlays = new Map(); // Map to track stats overlays
+let clientStatsOverlay = null;
+
+// Update variables to track network quality
+let networkQualityIndicators = new Map();
+let userNetworkQuality = new Map(); // Store the latest network quality levels
+
+// Add network quality polling interval
+let networkQualityInterval = null;
+const NETWORK_QUALITY_INTERVAL_MS = 2000; // Poll every 2 seconds
+
 // Update the localVideoLabel creation to be a function
 const localVideoLabel = document.createElement("div");
 localVideoLabel.className = "video-label";
 localVideoLabel.textContent = userIdInput.value || "Local Video";
 localVideo.appendChild(localVideoLabel);
 
-// Function to reset local video element with label
+// Function to create a dual quality indicator (uplink/downlink)
+function createDualQualityIndicator() {
+  const indicator = document.createElement("div");
+  indicator.className = "dual-quality-indicator";
+  
+  const upIcon = document.createElement("span");
+  upIcon.textContent = "↑";
+  upIcon.style.fontSize = "8px";
+  upIcon.style.color = "#ffffff";
+  
+  const uplink = document.createElement("div");
+  uplink.className = "uplink-indicator quality-0";
+  
+  const downIcon = document.createElement("span");
+  downIcon.textContent = "↓";
+  downIcon.style.fontSize = "8px";
+  downIcon.style.color = "#ffffff";
+  
+  const downlink = document.createElement("div");
+  downlink.className = "downlink-indicator quality-0";
+  
+  indicator.appendChild(upIcon);
+  indicator.appendChild(uplink);
+  indicator.appendChild(downIcon);
+  indicator.appendChild(downlink);
+  
+  return indicator;
+}
+
+// Function to update a dual quality indicator
+function updateDualQualityIndicator(indicator, uplinkQuality, downlinkQuality) {
+  if (!indicator) return;
+  
+  const uplink = indicator.querySelector(".uplink-indicator");
+  const downlink = indicator.querySelector(".downlink-indicator");
+  
+  if (uplink) {
+    uplink.className = `uplink-indicator quality-${uplinkQuality}`;
+  }
+  
+  if (downlink) {
+    downlink.className = `downlink-indicator quality-${downlinkQuality}`;
+  }
+}
+
+// Modified function to reset local video element
 function resetLocalVideo() {
   const localVideo = document.getElementById("localVideo");
   localVideo.innerHTML = "";
   localVideo.dataset.userId = userIdInput.value;
-  localVideo.classList.remove("video-muted"); // Reset video muted status
+  localVideo.classList.remove("video-muted");
   
   // Recreate the local video label
   const localVideoLabel = document.createElement("div");
@@ -133,14 +193,32 @@ function resetLocalVideo() {
   talkingWhileMutedNotification.textContent = "You're talking but your mic is muted!";
   talkingWhileMutedNotification.style.display = "none";
   
-  // First append the label and indicators, THEN the video will be played into this container
+  // Add network quality indicator
+  const networkQualityIndicator = createDualQualityIndicator();
+  networkQualityIndicators.set(userIdInput.value, networkQualityIndicator);
+  
+  // Create stats overlay for local video
+  const localStatsOverlay = document.createElement("div");
+  localStatsOverlay.className = "stats-overlay";
+  localStatsOverlay.id = "localVideoStats";
+  
+  // Add the visible class if stats are enabled
+  if (videoStatsEnabled) {
+    localStatsOverlay.classList.add('visible');
+  }
+  
+  videoStatsOverlays.set(userIdInput.value, localStatsOverlay);
+  
+  // First append the label and indicators
+  localVideo.appendChild(networkQualityIndicator);
   localVideo.appendChild(localVideoLabel);
   localVideo.appendChild(localMicMuteIndicator);
   localVideo.appendChild(localCameraMuteIndicator);
   localVideo.appendChild(talkingWhileMutedNotification);
+  localVideo.appendChild(localStatsOverlay);
 }
 
-// Function to create a new video element with label
+// Modified function to create a new video element
 function createVideoElement(userId) {
   const videoElement = document.createElement("div");
   videoElement.className = "video-player";
@@ -168,9 +246,27 @@ function createVideoElement(userId) {
   cameraMuteIndicator.style.display = "none";
   cameraMuteIndicators.set(userId, cameraMuteIndicator);
   
+  // Add network quality indicator
+  const networkQualityIndicator = createDualQualityIndicator();
+  networkQualityIndicators.set(userId, networkQualityIndicator);
+  
+  // Create stats overlay for remote video
+  const remoteStatsOverlay = document.createElement("div");
+  remoteStatsOverlay.className = "stats-overlay";
+  remoteStatsOverlay.id = `remoteVideoStats-${userId}`;
+  
+  // Add the visible class if stats are enabled
+  if (videoStatsEnabled) {
+    remoteStatsOverlay.classList.add('visible');
+  }
+  
+  videoStatsOverlays.set(userId, remoteStatsOverlay);
+  
+  videoElement.appendChild(networkQualityIndicator);
   videoElement.appendChild(videoLabel);
   videoElement.appendChild(micMuteIndicator);
   videoElement.appendChild(cameraMuteIndicator);
+  videoElement.appendChild(remoteStatsOverlay);
   
   return videoElement;
 }
@@ -239,7 +335,7 @@ function addChatMessage(container, text) {
       const message = parts[2];
       div.innerHTML = `<span class="to">To ${recipient}:</span> ${message}`;
     } else {
-      div.textContent = text;
+  div.textContent = text;
     }
   } else if (text.includes("[From ")) {
     // Incoming peer message
@@ -550,7 +646,7 @@ function handleRtmChannelMessage(evt) {
     // If this is a message from a peer
     if (publisher !== userIdInput.value) {
       // Include sender name in the message for clarity
-      addChatMessage(peerChatBox, `[${timestamp}] [From ${publisher}]: ${message}`);
+    addChatMessage(peerChatBox, `[${timestamp}] [From ${publisher}]: ${message}`);
       
       // Auto-select the peer if not already selected
       if (!selectedPeer) {
@@ -565,11 +661,11 @@ function handleRtmChannelMessage(evt) {
     }
     return;
   }
-  
+
   // Handle regular channel messages
   if (channelName === subscribedChannel) {
     if (publisher !== userIdInput.value) {
-      addChatMessage(channelChatBox, `[${timestamp}] [${publisher}]: ${message}`);
+  addChatMessage(channelChatBox, `[${timestamp}] [${publisher}]: ${message}`);
     }
   }
 }
@@ -580,7 +676,7 @@ function handleRtmPresenceEvent(evt) {
   
   // Format timestamp
   const timeStr = new Date(parseInt(timestamp)).toLocaleTimeString();
-  
+
   // Handle USER channel presence events
   if (channelName && activePeerChats.has(channelName)) {
     if (eventType === "JOIN" || eventType === "REMOTE_JOIN") {
@@ -694,17 +790,18 @@ async function initializeRTC(appId, token, userId) {
       // Remove the user's track state
       userTrackStates.delete(user.uid);
       
+      // Clean up the user's indicators
+      cleanupUserIndicators(user.uid);
+      
       // Remove the user's video element
       const videoElement = remoteVideos.get(user.uid);
       if (videoElement) {
         videoElement.remove();
         remoteVideos.delete(user.uid);
-        micMuteIndicators.delete(user.uid);
-        cameraMuteIndicators.delete(user.uid);
         updateVideoGrid();
       }
     });
-    
+
     // Set up RTC event listeners
     rtcClient.on("user-published", async (user, mediaType) => {
       await rtcClient.subscribe(user, mediaType);
@@ -729,15 +826,15 @@ async function initializeRTC(appId, token, userId) {
       userTrackStates.set(user.uid, trackState);
 
       if (mediaType === "video") {
-        // Create or get video element for this user
-        let videoElement;
-        if (!remoteVideos.has(user.uid)) {
-          videoElement = createVideoElement(user.uid);
-          remoteVideos.set(user.uid, videoElement);
-          updateVideoGrid();
+      // Create or get video element for this user
+      let videoElement;
+      if (!remoteVideos.has(user.uid)) {
+        videoElement = createVideoElement(user.uid);
+        remoteVideos.set(user.uid, videoElement);
+        updateVideoGrid();
           console.log(`Created new video element for ${user.uid}`);
-        } else {
-          videoElement = remoteVideos.get(user.uid);
+      } else {
+        videoElement = remoteVideos.get(user.uid);
           console.log(`Using existing video element for ${user.uid}`);
         }
         
@@ -752,7 +849,7 @@ async function initializeRTC(appId, token, userId) {
         // Play the video directly into the container element
         console.log(`Playing remote video from ${user.uid}`);
         try {
-          user.videoTrack.play(videoElement);
+        user.videoTrack.play(videoElement);
           console.log(`Successfully started playing video for ${user.uid}`);
         } catch (error) {
           console.error(`Error playing remote video for ${user.uid}:`, error);
@@ -800,7 +897,7 @@ async function initializeRTC(appId, token, userId) {
         if (videoElement) {
           // Check if videoTrack exists before trying to stop it
           if (user.videoTrack) {
-            user.videoTrack.stop();
+        user.videoTrack.stop();
             console.log(`Stopped remote video track for ${user.uid}`);
           }
           
@@ -1173,6 +1270,9 @@ joinChannelBtn.addEventListener("click", async () => {
     // Start volume detection
     startVolumeDetection();
     
+    // Set up network quality monitoring (instead of starting interval)
+    setupNetworkQualityMonitoring();
+    
     // Enable controls and set initial states
     joinChannelBtn.disabled = true;
     leaveChannelBtn.disabled = false;
@@ -1202,6 +1302,11 @@ joinChannelBtn.addEventListener("click", async () => {
     // Add a system message with join status
     const timestamp = new Date().toLocaleTimeString();
     addChatMessage(channelChatBox, `[${timestamp}] [System] You joined RTC channel: ${channelName}`);
+
+    // If stats are enabled, start collecting
+    if (videoStatsEnabled) {
+      startVideoStatsUpdates();
+    }
   } catch (err) {
     console.error("Failed to join RTC channel:", err);
     alert("Failed to join RTC channel. Please check your connection and try again.");
@@ -1210,9 +1315,19 @@ joinChannelBtn.addEventListener("click", async () => {
 
 // Update the leave channel handler
 leaveChannelBtn.addEventListener("click", async () => {
-  if (!rtcClient) return;
+  if (!rtcClient) {
+    console.warn("No RTC client to leave");
+    return;
+  }
+  
   try {
     console.log("Leave channel button clicked");
+    
+    // Stop network quality polling
+    stopRemoteNetworkQualityPolling();
+    
+    // Stop stats updates
+    stopVideoStatsUpdates();
     
     // Stop volume detection
     stopVolumeDetection();
@@ -1286,13 +1401,33 @@ async function unsubscribe() {
   try {
     console.log("Unsubscribing from channel...");
     
+    // Stop network quality polling
+    stopRemoteNetworkQualityPolling();
+    
+    // Stop stats updates
+    stopVideoStatsUpdates();
+    
+    // Reset toggle checkbox state if it exists
+    const statsToggle = document.getElementById('statsToggleInput');
+    if (statsToggle) {
+      statsToggle.checked = false;
+      videoStatsEnabled = false;
+    }
+    
+    // Hide client stats overlay if it exists
+    if (clientStatsOverlay) {
+      clientStatsOverlay.classList.remove('visible');
+    }
+    
     // Stop volume detection
     stopVolumeDetection();
     
     // Add a system message with unsubscribe status
-    const timestamp = new Date().toLocaleTimeString();
-    const channelName = subscribedChannel;
-    addChatMessage(channelChatBox, `[${timestamp}] [System] You unsubscribed from channel: ${channelName}`);
+    if (subscribedChannel) {
+      const timestamp = new Date().toLocaleTimeString();
+      const channelName = subscribedChannel;
+      addChatMessage(channelChatBox, `[${timestamp}] [System] You unsubscribed from channel: ${channelName}`);
+    }
     
     // First, stop and close local tracks
     if (localAudioTrack) {
@@ -1327,13 +1462,18 @@ async function unsubscribe() {
     
     // Clear additional videos container
     console.log("Clearing additional videos container");
-    document.getElementById("additionalVideos").innerHTML = "";
+    const additionalVideosElem = document.getElementById("additionalVideos");
+    if (additionalVideosElem) {
+      additionalVideosElem.innerHTML = "";
+    }
     
     // Hide remote video container
     console.log("Clearing remote video container");
     const remoteVideo = document.getElementById("remoteVideo");
-    remoteVideo.innerHTML = "";
-    remoteVideo.classList.remove("visible");
+    if (remoteVideo) {
+      remoteVideo.innerHTML = "";
+      remoteVideo.classList.remove("visible");
+    }
     
     // Leave RTC channel
     if (rtcClient) {
@@ -1349,11 +1489,13 @@ async function unsubscribe() {
     }
     
     // Clean up peer chats
-    for (const [peerId] of activePeerChats) {
-      try {
-        await rtmClient.unsubscribe(peerId);
-      } catch (err) {
-        console.error(`Error unsubscribing from peer ${peerId}:`, err);
+    if (rtmClient) {
+      for (const [peerId] of activePeerChats) {
+        try {
+          await rtmClient.unsubscribe(peerId);
+        } catch (err) {
+          console.error(`Error unsubscribing from peer ${peerId}:`, err);
+        }
       }
     }
     activePeerChats.clear();
@@ -1386,6 +1528,318 @@ async function unsubscribe() {
     console.log("Unsubscribe complete");
   } catch (error) {
     console.error("Error unsubscribing:", error);
+  }
+}
+
+// Make sure to add back the DOM ready event listener
+// After page load, create and add the stats toggle button
+document.addEventListener('DOMContentLoaded', function() {
+  // Add the stats toggle container
+  const toggleContainer = document.createElement('label');
+  toggleContainer.className = 'stats-toggle-container';
+  toggleContainer.innerHTML = `
+    <input type="checkbox" id="statsToggleInput">
+    <i class="fas fa-chart-line"></i>
+  `;
+  document.body.appendChild(toggleContainer);
+  
+  // Add client stats overlay container
+  clientStatsOverlay = document.createElement('div');
+  clientStatsOverlay.className = 'client-stats-overlay';
+  clientStatsOverlay.innerHTML = '<div class="client-stats-heading">RTC Client Stats</div><div id="clientStats"></div>';
+  document.body.appendChild(clientStatsOverlay);
+  
+  // Add event listener for toggle with immediate update
+  document.getElementById('statsToggleInput').addEventListener('change', function(e) {
+    videoStatsEnabled = e.target.checked;
+    
+    if (videoStatsEnabled) {
+      // First update immediately
+      if (rtcClient) {
+        updateStatsImmediately().then(() => {
+          console.log("Stats updated immediately");
+          startVideoStatsUpdates();
+        });
+  } else {
+        console.log("RTC client not available for immediate stats update");
+        startVideoStatsUpdates();
+      }
+      
+      // Show all stats overlays
+      clientStatsOverlay.classList.add('visible');
+      videoStatsOverlays.forEach(overlay => {
+        overlay.classList.add('visible');
+      });
+    } else {
+      stopVideoStatsUpdates();
+      
+      // Hide all stats overlays
+      clientStatsOverlay.classList.remove('visible');
+      videoStatsOverlays.forEach(overlay => {
+        overlay.classList.remove('visible');
+      });
+    }
+  });
+});
+
+// Update function for immediate stats update
+async function updateStatsImmediately() {
+  if (!rtcClient) return;
+  
+  try {
+    // Get client stats
+    const clientStats = rtcClient.getRTCStats();
+    
+    // Update client stats
+    if (clientStats && document.getElementById('clientStats')) {
+      document.getElementById('clientStats').innerHTML = [
+        `RTT: ${clientStats.RTT || 0}ms`,
+        `Outgoing B/W: ${((Number(clientStats.OutgoingAvailableBandwidth) || 0) * 0.001).toFixed(2)} Mbps`,
+        `UserCount: ${clientStats.UserCount || 0}`,
+        `SendBitrate: ${((Number(clientStats.SendBitrate) || 0) * 0.000001).toFixed(2)} Mbps`,
+        `RecvBitrate: ${((Number(clientStats.RecvBitrate) || 0) * 0.000001).toFixed(2)} Mbps`,
+        `Duration: ${Math.floor((clientStats.Duration || 0) / 60)}:${((clientStats.Duration || 0) % 60).toString().padStart(2, '0')}`
+      ].join('<br>');
+    }
+    
+    // Update all stats displays
+    updateStatsDisplays();
+    
+  } catch (error) {
+    console.error('Error in immediate stats update:', error);
+  }
+}
+
+// Restore the updateUIForDisconnected function
+function updateUIForDisconnected() {
+  document.getElementById("joinChannelBtn").disabled = true;
+  document.getElementById("leaveChannelBtn").disabled = true;
+  document.getElementById("toggleAudioBtn").disabled = true;
+  document.getElementById("toggleVideoBtn").disabled = true;
+  document.getElementById("subscribeBtn").disabled = true;
+  document.getElementById("unsubscribeBtn").disabled = true;
+  document.getElementById("sendChannelMsgBtn").disabled = true;
+  document.getElementById("sendPeerMsgBtn").disabled = true;
+  
+  // Clear remote videos but keep local video
+  remoteVideos.clear();
+  updateVideoGrid();
+  
+  document.getElementById("channelStatus").textContent = "";
+  document.getElementById("channelChatBox").innerHTML = "";
+  document.getElementById("peerChatBox").innerHTML = "";
+  document.getElementById("participantsList").innerHTML = "";
+}
+
+// Start volume detection and update UI
+function startVolumeDetection() {
+  // Set parameters for volume detection
+  AgoraRTC.setParameter("AUDIO_VOLUME_INDICATION_INTERVAL", 200); // 200ms interval
+  AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+
+  // Enable audio volume indicator on the RTC client with more frequent updates
+  rtcClient.enableAudioVolumeIndicator({
+    interval: 200, // 200ms interval for more responsive updates
+    smooth: 2 // Less smoothing for more responsive detection
+  });
+  
+  if (volumeDetectionInterval) {
+    clearInterval(volumeDetectionInterval);
+  }
+  
+  volumeDetectionInterval = setInterval(() => {
+    // Listen for volume indicator event
+    rtcClient.on("volume-indicator", (volumes) => {
+      volumes.forEach((volume) => {
+        // Check if this is the local user (has MicrophoneAudioTrack type)
+        if (volume.level > VOLUME_SPEAKING_THRESHOLD && localAudioTrack && 
+            volume.uid === userIdInput.value) {
+          
+          // Handle talking while muted for local user
+          if (localAudioTrack.muted) {
+            if (!isTalkingWhileMuted) {
+              isTalkingWhileMuted = true;
+              const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
+              if (talkingWhileMutedNotification) {
+                talkingWhileMutedNotification.style.display = "block";
+              }
+              
+              setTimeout(() => {
+                const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
+                if (talkingWhileMutedNotification) {
+                  talkingWhileMutedNotification.style.display = "none";
+                }
+                isTalkingWhileMuted = false;
+              }, 3000); // Show for 3 seconds
+            }
+          }
+          
+          // Add speaking class to local video when volume is high
+          if (volume.level > VOLUME_HIGH_THRESHOLD) {
+            const localVideo = document.getElementById("localVideo");
+            if (localVideo) {
+              localVideo.classList.add("speaking");
+              
+              // Remove the class after a short delay to create a natural effect
+              setTimeout(() => {
+                localVideo.classList.remove("speaking");
+              }, 300);
+            }
+          }
+        } else if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
+          // Handle remote user speaking
+          const remoteVideoElement = findRemoteVideoElement(volume.uid);
+          if (remoteVideoElement) {
+            remoteVideoElement.classList.add("speaking");
+            
+            // Remove the class after a short delay
+            setTimeout(() => {
+              remoteVideoElement.classList.remove("speaking");
+            }, 300);
+          }
+        }
+      });
+    });
+  }, 200);
+}
+
+// Helper function to find a remote video element by user ID
+function findRemoteVideoElement(uid) {
+  const videoElement = document.querySelector(`.video-player[data-user-id="${uid}"]`);
+  return videoElement;
+}
+
+// Clean up a user's indicators when they leave
+function cleanupUserIndicators(userId) {
+  // Remove network quality indicator
+  networkQualityIndicators.delete(userId);
+  
+  // Remove network quality data
+  userNetworkQuality.delete(userId);
+  
+  // Remove stats overlay
+  videoStatsOverlays.delete(userId);
+  
+  // Remove mute indicators
+  micMuteIndicators.delete(userId);
+  cameraMuteIndicators.delete(userId);
+}
+
+// Update function to setup network quality monitoring
+function setupNetworkQualityMonitoring() {
+  if (!rtcClient) return;
+  
+  console.log("Setting up network quality monitoring");
+  
+  // Listen for local network quality events
+  rtcClient.on("network-quality", (stats) => {
+    console.log("Local network quality update:", stats);
+    
+    // Store latest quality values
+    userNetworkQuality.set(userIdInput.value, {
+      uplink: stats.uplinkNetworkQuality || 0,
+      downlink: stats.downlinkNetworkQuality || 0
+    });
+    
+    // Update the dual quality indicator for local user
+    const localIndicator = networkQualityIndicators.get(userIdInput.value);
+    if (localIndicator) {
+      updateDualQualityIndicator(
+        localIndicator,
+        stats.uplinkNetworkQuality || 0,
+        stats.downlinkNetworkQuality || 0
+      );
+    }
+    
+    // If stats are enabled, update stats displays
+    if (videoStatsEnabled) {
+      updateStatsDisplays();
+    }
+  });
+  
+  // Start polling for remote users' network quality
+  startRemoteNetworkQualityPolling();
+}
+
+// Function to poll remote network quality
+function startRemoteNetworkQualityPolling() {
+  if (networkQualityInterval) {
+    clearInterval(networkQualityInterval);
+  }
+  
+  console.log("Starting remote network quality polling");
+  
+  networkQualityInterval = setInterval(async () => {
+    if (!rtcClient) return;
+    
+    try {
+      // Get remote network quality for all users
+      const remoteNetworkQuality = await rtcClient.getRemoteNetworkQuality();
+      console.log("Remote network quality:", remoteNetworkQuality);
+      
+      // Update network quality indicators for each remote user
+      for (const uid in remoteNetworkQuality) {
+        const quality = remoteNetworkQuality[uid];
+        
+        // Store the quality values
+        userNetworkQuality.set(uid, {
+          uplink: quality.uplinkNetworkQuality || 0,
+          downlink: quality.downlinkNetworkQuality || 0
+        });
+        
+        // Update the dual quality indicator
+        const indicator = networkQualityIndicators.get(uid);
+        if (indicator) {
+          updateDualQualityIndicator(
+            indicator, 
+            quality.uplinkNetworkQuality || 0,
+            quality.downlinkNetworkQuality || 0
+          );
+        }
+      }
+      
+      // If stats are enabled, update the stats display which will show the updated quality
+      if (videoStatsEnabled) {
+        updateStatsDisplays();
+      }
+    } catch (error) {
+      console.error('Error polling remote network quality:', error);
+    }
+  }, NETWORK_QUALITY_INTERVAL_MS);
+}
+
+// Video grid function that was accidentally removed
+function updateVideoGrid() {
+  const additionalVideosContainer = document.getElementById("additionalVideos");
+  const remoteVideoDiv = document.getElementById("remoteVideo");
+  
+  // Clear containers
+  additionalVideosContainer.innerHTML = "";
+  remoteVideoDiv.innerHTML = "";
+  
+  // Convert Map to Array for easier handling
+  const remoteUsers = Array.from(remoteVideos.entries());
+  
+  // Handle first remote user (if any)
+  if (remoteUsers.length > 0) {
+    const [firstUserId, firstVideo] = remoteUsers[0];
+    remoteVideoDiv.appendChild(firstVideo);
+    remoteVideoDiv.classList.add("visible");
+  } else {
+    remoteVideoDiv.classList.remove("visible");
+  }
+  
+  // Handle additional users (if any)
+  for (let i = 1; i < remoteUsers.length; i++) {
+    const [userId, video] = remoteUsers[i];
+    additionalVideosContainer.appendChild(video);
+  }
+  
+  // If stats are enabled, ensure all overlays are visible
+  if (videoStatsEnabled) {
+    videoStatsOverlays.forEach(overlay => {
+      overlay.classList.add('visible');
+    });
   }
 }
 
@@ -1491,137 +1945,354 @@ toggleAudioBtn.addEventListener("click", async () => {
   }
 });
 
-// Start volume detection and update UI
-function startVolumeDetection() {
-  console.log("Starting volume detection with thresholds:", {
-    speakingThreshold: VOLUME_SPEAKING_THRESHOLD,
-    highThreshold: VOLUME_HIGH_THRESHOLD
-  });
-  
-  // Set parameters for volume detection
-  AgoraRTC.setParameter("AUDIO_VOLUME_INDICATION_INTERVAL", 200); // 200ms interval
-  AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
-
-  // Enable audio volume indicator on the RTC client with more frequent updates
-  rtcClient.enableAudioVolumeIndicator({
-    interval: 200, // 200ms interval for more responsive updates
-    smooth: 2 // Less smoothing for more responsive detection
-  });
-  
-  // Set up the volume-indicator event
-  rtcClient.on("volume-indicator", volumes => {
-    console.log("Volume indicator event:", volumes.map(v => ({uid: v.uid, level: v.level})));
-    volumes.forEach(volume => {
-      // Handle remote users
-      if (volume.uid !== userIdInput.value) {
-        const videoElement = remoteVideos.get(volume.uid);
-        if (videoElement) {
-          // Add speaking border if volume is above threshold
-          if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
-            console.log(`Remote user ${volume.uid} is speaking with level ${volume.level}`);
-            videoElement.classList.add("speaking");
-          } else {
-            videoElement.classList.remove("speaking");
-          }
-        }
-      } else {
-        // This handles the local user volume from rtcClient's perspective
-        const localVideoElement = document.getElementById("localVideo");
-        
-        if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
-          console.log(`Local user detected speaking from volume-indicator with level ${volume.level}`);
-          localVideoElement.classList.add("speaking");
-        } else {
-          localVideoElement.classList.remove("speaking");
-        }
-      }
-    });
-  });
-  
-  // Set up interval for local volume monitoring as backup
-  volumeDetectionInterval = setInterval(() => {
-    if (localAudioTrack) {
-      try {
-        // Get volume level - use 0-100 scale for easier comparison
-        const volumeLevel = localAudioTrack.getVolumeLevel() * 100;
-        
-        console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
-        
-        // Show talking while muted notification
-        const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
-        if (talkingWhileMutedNotification && localAudioTrack.muted && volumeLevel > VOLUME_HIGH_THRESHOLD) {
-          console.log(`TALKING WHILE MUTED DETECTED! Level: ${volumeLevel}`);
-          if (!isTalkingWhileMuted) {
-            console.log("Showing talking while muted notification");
-            talkingWhileMutedNotification.style.display = "block";
-            isTalkingWhileMuted = true;
-            setTimeout(() => {
-              console.log("Hiding talking while muted notification after timeout");
-              talkingWhileMutedNotification.style.display = "none";
-              isTalkingWhileMuted = false;
-            }, 3000);
-          }
-        }
-      } catch (error) {
-        console.error("Error getting volume level:", error);
-      }
-    }
-  }, 200);
+// Remove old network quality functions
+function startNetworkQualityUpdates() {
+  // This function is deprecated, use setupNetworkQualityMonitoring instead
+  console.warn("startNetworkQualityUpdates is deprecated, use setupNetworkQualityMonitoring instead");
+  if (rtcClient) {
+    setupNetworkQualityMonitoring();
+  }
 }
 
-// Stop volume detection
+function stopNetworkQualityUpdates() {
+  // This function is deprecated, use stopRemoteNetworkQualityPolling instead
+  console.warn("stopNetworkQualityUpdates is deprecated, use stopRemoteNetworkQualityPolling instead");
+  stopRemoteNetworkQualityPolling();
+}
+
+// Add any missing functions here after network quality handling
+function stopRemoteNetworkQualityPolling() {
+  if (networkQualityInterval) {
+    console.log("Stopping remote network quality polling");
+    clearInterval(networkQualityInterval);
+    networkQualityInterval = null;
+  }
+}
+
+// Function to stop volume detection
 function stopVolumeDetection() {
   if (volumeDetectionInterval) {
+    console.log("Stopping volume detection");
     clearInterval(volumeDetectionInterval);
     volumeDetectionInterval = null;
   }
 }
 
-// Function to update video grid layout
-function updateVideoGrid() {
-  const additionalVideosContainer = document.getElementById("additionalVideos");
-  const remoteVideoDiv = document.getElementById("remoteVideo");
-  
-  // Clear containers
-  additionalVideosContainer.innerHTML = "";
-  remoteVideoDiv.innerHTML = "";
-  
-  // Convert Map to Array for easier handling
-  const remoteUsers = Array.from(remoteVideos.entries());
-  
-  // Handle first remote user (if any)
-  if (remoteUsers.length > 0) {
-    const [firstUserId, firstVideo] = remoteUsers[0];
-    remoteVideoDiv.appendChild(firstVideo);
-    remoteVideoDiv.classList.add("visible");
-  } else {
-    remoteVideoDiv.classList.remove("visible");
+// Function to start video stats updates
+function startVideoStatsUpdates() {
+  if (videoStatsInterval) {
+    clearInterval(videoStatsInterval);
   }
   
-  // Handle additional users (if any)
-  for (let i = 1; i < remoteUsers.length; i++) {
-    const [userId, video] = remoteUsers[i];
-    additionalVideosContainer.appendChild(video);
+  console.log("Starting video stats updates");
+  
+  videoStatsInterval = setInterval(async () => {
+    if (!rtcClient) return;
+    
+    try {
+      // Get client stats
+      const clientStats = rtcClient.getRTCStats();
+      
+      // Update client stats
+      if (clientStats && document.getElementById('clientStats')) {
+        document.getElementById('clientStats').innerHTML = [
+          `RTT: ${clientStats.RTT || 0}ms`,
+          `Outgoing B/W: ${((Number(clientStats.OutgoingAvailableBandwidth) || 0) * 0.001).toFixed(2)} Mbps`,
+          `UserCount: ${clientStats.UserCount || 0}`,
+          `SendBitrate: ${((Number(clientStats.SendBitrate) || 0) * 0.000001).toFixed(2)} Mbps`,
+          `RecvBitrate: ${((Number(clientStats.RecvBitrate) || 0) * 0.000001).toFixed(2)} Mbps`,
+          `Duration: ${Math.floor((clientStats.Duration || 0) / 60)}:${((clientStats.Duration || 0) % 60).toString().padStart(2, '0')}`
+        ].join('<br>');
+      }
+      
+      // Update all stats displays
+      updateStatsDisplays();
+      
+    } catch (error) {
+      console.error('Error updating video stats:', error);
+    }
+  }, videoStatsIntervalMs);
+}
+
+// Function to stop video stats updates
+function stopVideoStatsUpdates() {
+  if (videoStatsInterval) {
+    clearInterval(videoStatsInterval);
+    videoStatsInterval = null;
   }
 }
 
-// Update the updateUIForDisconnected function
-function updateUIForDisconnected() {
-  document.getElementById("joinChannelBtn").disabled = true;
-  document.getElementById("leaveChannelBtn").disabled = true;
-  document.getElementById("toggleAudioBtn").disabled = true;
-  document.getElementById("toggleVideoBtn").disabled = true;
-  document.getElementById("subscribeBtn").disabled = true;
-  document.getElementById("unsubscribeBtn").disabled = true;
-  document.getElementById("sendChannelMsgBtn").disabled = true;
-  document.getElementById("sendPeerMsgBtn").disabled = true;
-  
-  // Clear remote videos but keep local video
-  remoteVideos.clear();
-  updateVideoGrid();
-  
-  document.getElementById("channelStatus").textContent = "";
-  document.getElementById("channelChatBox").innerHTML = "";
-  document.getElementById("peerChatBox").innerHTML = "";
-  document.getElementById("participantsList").innerHTML = "";
+// Function to update all stats displays
+async function updateStatsDisplays() {
+  try {
+    // Update local stats
+    if (rtcClient && localVideoTrack) {
+      // Get stats objects
+      const localVideoStats = rtcClient.getLocalVideoStats();
+      const localAudioStats = rtcClient.getLocalAudioStats();
+      
+      // Complete one-time debug logging of all available properties
+      console.log("ALL LOCAL VIDEO STATS PROPERTIES:", Object.keys(localVideoStats));
+      console.log("ALL LOCAL AUDIO STATS PROPERTIES:", Object.keys(localAudioStats));
+      
+      // Debug: Log the raw stats objects
+      console.log("Raw local video stats:", JSON.stringify(localVideoStats));
+      console.log("Raw local audio stats:", JSON.stringify(localAudioStats));
+      
+      // Get local stats display element
+      const localStatsDisplay = videoStatsOverlays.get(userIdInput.value);
+      if (!localStatsDisplay) return;
+      
+      // Get local network quality
+      const localNetworkQuality = userNetworkQuality.get(userIdInput.value) || {uplink: 0, downlink: 0};
+      
+      // Create HTML for the two columns
+      let html = '';
+      
+      // Left column
+      html += '<div class="stats-column">';
+      html += '<span class="stats-header network">Network</span> ';
+      html += `<div>Quality: <span class="network-quality quality-${localNetworkQuality.uplink}">${getQualityText(localNetworkQuality.uplink)}</span></div>`;
+      
+      // Direct access using correct property names
+      let rtt = localVideoStats.sendRttMs || 0;
+      let videoLossRate = (localVideoStats.currentPacketLossRate || 0) * 100;
+      let videoPacketsLost = localVideoStats.sendPacketsLost || 0;
+      let audioLossRate = (localAudioStats.currentPacketLossRate || 0) * 100;
+      let audioPacketsLost = localAudioStats.sendPacketsLost || 0;
+      
+      html += `<div>RTT: ${rtt.toFixed(0)}ms</div>`;
+      html += `<div>Video Loss: ${videoLossRate.toFixed(1)}%</div>`;
+      html += `<div>Video Pkts Lost: ${videoPacketsLost}</div>`;
+      html += `<div>Audio Loss: ${audioLossRate.toFixed(1)}%</div>`;
+      html += `<div>Audio Pkts Lost: ${audioPacketsLost}</div>`;
+      
+      html += '<span class="stats-header video">Video</span> ';
+      
+      // Direct access using correct property names
+      let captureWidth = localVideoStats.captureResolutionWidth || 0;
+      let captureHeight = localVideoStats.captureResolutionHeight || 0;
+      let sendWidth = localVideoStats.sendResolutionWidth || 0;
+      let sendHeight = localVideoStats.sendResolutionHeight || 0;
+      let captureFps = localVideoStats.captureFrameRate || 0;
+      let sendFps = localVideoStats.sendFrameRate || 0;
+      let videoCodec = localVideoStats.codecType || 'VP8';
+      
+      html += `<div>Capture: ${captureWidth}x${captureHeight}</div>`;
+      html += `<div>Send: ${sendWidth}x${sendHeight}</div>`;
+      html += `<div>FPS: ${captureFps.toFixed(1)} → ${sendFps.toFixed(1)}</div>`;
+      html += `<div>Codec: ${videoCodec}</div>`;
+      html += '</div>'; // Close left column
+      
+      // Right column
+      html += '<div class="stats-column">';
+      html += '<span class="stats-header performance">Performance</span> ';
+      
+      // Direct access using correct property names
+      let encodeDelay = localVideoStats.encodeDelay || 0;
+      let targetBitrate = (localVideoStats.targetSendBitrate || 0) / 1000;
+      let actualBitrate = (localVideoStats.sendBitrate || 0) / 1000;
+      let videoBytes = (localVideoStats.sendBytes || 0) / 1024;
+      let totalFreezeTime = localVideoStats.totalFreezeTime || 0;
+      let duration = localVideoStats.totalDuration || 0;
+      
+      html += `<div>Encode Delay: ${encodeDelay.toFixed(1)}ms</div>`;
+      html += `<div>Target Bitrate: ${targetBitrate.toFixed(2)} Kbps</div>`;
+      html += `<div>Video Bitrate: ${actualBitrate.toFixed(2)} Kbps</div>`;
+      html += `<div>Video Bytes: ${videoBytes.toFixed(2)} KB</div>`;
+      html += `<div>Freeze Time: ${totalFreezeTime.toFixed(0)}ms</div>`;
+      html += `<div>Duration: ${duration.toFixed(0)}s</div>`;
+      
+      html += '<span class="stats-header audio">Audio</span> ';
+      
+      // Direct access using correct property names
+      let audioBitrate = (localAudioStats.sendBitrate || 0) / 1000;
+      let audioLevel = localAudioStats.sendVolumeLevel || 0;
+      let audioCodec = localAudioStats.codecType || 'opus';
+      let audioJitter = localAudioStats.sendJitterMs || 0;
+      let audioBytes = (localAudioStats.sendBytes || 0) / 1024;
+      
+      html += `<div>Audio Bitrate: ${audioBitrate.toFixed(2)} Kbps</div>`;
+      html += `<div>Energy Level: ${audioLevel.toFixed(2)}</div>`;
+      html += `<div>Codec: ${audioCodec}</div>`;
+      html += `<div>Jitter: ${audioJitter.toFixed(1)}ms</div>`;
+      html += `<div>Audio Bytes: ${audioBytes.toFixed(2)} KB</div>`;
+      html += '</div>'; // Close right column
+      
+      // Update the display
+      localStatsDisplay.innerHTML = html;
+      localStatsDisplay.style.display = "flex";
+    }
+    
+    // Update remote stats
+    if (rtcClient) {
+      // Get remote stats
+      const remoteVideoStats = rtcClient.getRemoteVideoStats();
+      const remoteAudioStats = rtcClient.getRemoteAudioStats();
+      
+      // Log all property names for one remote stats object (if available)
+      const firstRemoteVideoUid = Object.keys(remoteVideoStats)[0];
+      const firstRemoteAudioUid = Object.keys(remoteAudioStats)[0];
+      
+      if (firstRemoteVideoUid) {
+        console.log("ALL REMOTE VIDEO STATS PROPERTIES:", Object.keys(remoteVideoStats[firstRemoteVideoUid]));
+      }
+      
+      if (firstRemoteAudioUid) {
+        console.log("ALL REMOTE AUDIO STATS PROPERTIES:", Object.keys(remoteAudioStats[firstRemoteAudioUid]));
+      }
+      
+      // Debug: Log the raw remote stats objects
+      console.log("Raw remote video stats:", JSON.stringify(remoteVideoStats));
+      console.log("Raw remote audio stats:", JSON.stringify(remoteAudioStats));
+      
+      // Process each remote user
+      for (const [uid, videoElement] of remoteVideos.entries()) {
+        try {
+          // Get stats for this specific user
+          const remoteVideoStats_uid = remoteVideoStats[uid];
+          const remoteAudioStats_uid = remoteAudioStats[uid];
+          
+          // Debug: Log the user-specific stats
+          console.log(`Remote video stats for ${uid}:`, JSON.stringify(remoteVideoStats_uid));
+          console.log(`Remote audio stats for ${uid}:`, JSON.stringify(remoteAudioStats_uid));
+          
+          // Get stats display element
+          const remoteStatsDisplay = videoStatsOverlays.get(uid);
+          if (!remoteStatsDisplay) continue;
+          
+          // Skip if no stats available
+          if (!remoteVideoStats_uid && !remoteAudioStats_uid) {
+            console.warn(`No stats available for user ${uid}`);
+            continue;
+          }
+          
+          // Get remote network quality
+          const remoteNetworkQuality = userNetworkQuality.get(uid) || {uplink: 0, downlink: 0};
+          
+          // Create HTML for the two columns
+          let html = '';
+          
+          // Left column
+          html += '<div class="stats-column">';
+          html += '<span class="stats-header network">Network</span> ';
+          html += `<div>Quality: <span class="network-quality quality-${remoteNetworkQuality.uplink}">${getQualityText(remoteNetworkQuality.uplink)}</span></div>`;
+          
+          if (remoteVideoStats_uid) {
+            // Direct access using correct property names
+            let delay = remoteVideoStats_uid.end2EndDelay || 0;
+            let videoLossRate = (remoteVideoStats_uid.packetLossRate || 0) * 100;
+            let videoPacketsLost = remoteVideoStats_uid.receivePacketsLost || 0;
+            let receiveDelay = remoteVideoStats_uid.receiveDelay || 0;
+            let transportDelay = remoteVideoStats_uid.transportDelay || 0;
+            
+            html += `<div>Delay: ${delay.toFixed(0)}ms</div>`;
+            html += `<div>Video Loss: ${videoLossRate.toFixed(1)}%</div>`;
+            html += `<div>Video Pkts Lost: ${videoPacketsLost}</div>`;
+            html += `<div>Receive Delay: ${receiveDelay.toFixed(1)}ms</div>`;
+            html += `<div>Transport: ${transportDelay.toFixed(0)}ms</div>`;
+          }
+          
+          if (remoteAudioStats_uid) {
+            let audioLossRate = (remoteAudioStats_uid.packetLossRate || 0) * 100;
+            let end2endDelay = remoteAudioStats_uid.end2EndDelay || 0;
+            
+            html += `<div>Audio Loss: ${audioLossRate.toFixed(1)}%</div>`;
+            html += `<div>Audio End2End: ${end2endDelay.toFixed(0)}ms</div>`;
+          }
+          
+          html += '<span class="stats-header video">Video</span> ';
+          
+          if (remoteVideoStats_uid) {
+            // Using correct property names for remote video resolution
+            let width = remoteVideoStats_uid.receiveResolutionWidth || 0;
+            let height = remoteVideoStats_uid.receiveResolutionHeight || 0;
+            let decodeFps = remoteVideoStats_uid.decodeFrameRate || 0;
+            let renderFps = remoteVideoStats_uid.renderFrameRate || 0;
+            let videoCodec = remoteVideoStats_uid.codecType || 'VP8';
+            
+            html += `<div>Resolution: ${width}x${height}</div>`;
+            html += `<div>FPS: ${decodeFps.toFixed(1)} → ${renderFps.toFixed(1)}</div>`;
+            html += `<div>Codec: ${videoCodec}</div>`;
+          }
+          html += '</div>'; // Close left column
+          
+          // Right column
+          html += '<div class="stats-column">';
+          html += '<span class="stats-header performance">Performance</span> ';
+          
+          if (remoteVideoStats_uid) {
+            // Direct access using correct property names
+            let videoBitrate = (remoteVideoStats_uid.receiveBitrate || 0) / 1000;
+            let freezeTime = remoteVideoStats_uid.totalFreezeTime || 0;
+            let freezeRate = (remoteVideoStats_uid.freezeRate || 0) * 100;
+            let videoBytes = (remoteVideoStats_uid.receiveBytes || 0) / 1024;
+            let duration = remoteVideoStats_uid.totalDuration || 0;
+            let publishDuration = remoteVideoStats_uid.publishDuration || 0;
+            
+            html += `<div>Video Bitrate: ${videoBitrate.toFixed(2)} Kbps</div>`;
+            html += `<div>Frozen Time: ${freezeTime.toFixed(0)}ms</div>`;
+            html += `<div>Freeze Rate: ${freezeRate.toFixed(1)}%</div>`;
+            html += `<div>Video Bytes: ${videoBytes.toFixed(2)} KB</div>`;
+            html += `<div>Duration: ${duration.toFixed(0)}s</div>`;
+            html += `<div>Pub Duration: ${publishDuration.toFixed(0)}s</div>`;
+          }
+          
+          html += '<span class="stats-header audio">Audio</span> ';
+          
+          if (remoteAudioStats_uid) {
+            // Direct access using correct property names
+            let audioBitrate = (remoteAudioStats_uid.receiveBitrate || 0) / 1000;
+            let audioLevel = remoteAudioStats_uid.receiveLevel || 0;
+            let audioCodec = remoteAudioStats_uid.codecType || 'opus';
+            let audioBytes = (remoteAudioStats_uid.receiveBytes || 0) / 1024;
+            let audioFreezeTime = remoteAudioStats_uid.totalFreezeTime || 0;
+            
+            html += `<div>Audio Bitrate: ${audioBitrate.toFixed(2)} Kbps</div>`;
+            html += `<div>Energy Level: ${audioLevel.toFixed(2)}</div>`;
+            html += `<div>Codec: ${audioCodec}</div>`;
+            html += `<div>Audio Bytes: ${audioBytes.toFixed(2)} KB</div>`;
+            html += `<div>Freeze Time: ${audioFreezeTime.toFixed(0)}ms</div>`;
+          }
+          html += '</div>'; // Close right column
+          
+          // Update the display
+          remoteStatsDisplay.innerHTML = html;
+          remoteStatsDisplay.style.display = "flex";
+        } catch (error) {
+          console.error(`Error updating stats for user ${uid}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error updating stats displays:", error);
+  }
+}
+
+// Helper function to get quality text based on quality level
+function getQualityText(quality) {
+  switch (Number(quality)) {
+    case 0: return "Unknown";
+    case 1: return "Excellent";
+    case 2: return "Good";
+    case 3: return "Fair";
+    case 4: return "Poor";
+    case 5: return "Bad";
+    case 6: return "Disconnected";
+    default: return "Unknown";
+  }
+}
+
+// Helper function to get the CSS class for network quality
+function getNetworkQualityClass(quality) {
+  switch (Number(quality)) {
+    case 0: return "quality-0";
+    case 1: return "quality-1";
+    case 2: return "quality-2";
+    case 3: return "quality-3";
+    case 4: return "quality-4";
+    case 5: return "quality-5";
+    case 6: return "quality-6";
+    default: return "quality-0";
+  }
 }

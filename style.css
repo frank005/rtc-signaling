@@ -121,7 +121,7 @@ h1 {
 .video-label {
   position: absolute;
   top: 10px;
-  left: 10px;
+  left: 35px;
   background-color: rgba(26, 27, 38, 0.8);
   color: #ffffff;
   padding: 4px 8px;
@@ -617,7 +617,6 @@ input[type="text"] {
 .mute-indicator {
   position: absolute;
   top: 10px;
-  right: 10px;
   background-color: rgba(231, 76, 60, 0.8);
   border-radius: 50%;
   width: 32px;
@@ -625,9 +624,9 @@ input[type="text"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 20; /* Increase z-index to ensure it's always on top */
+  z-index: 20;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-  pointer-events: none; /* Ensure it doesn't block interactions */
+  pointer-events: none;
   text-align: center;
 }
 
@@ -643,13 +642,15 @@ input[type="text"] {
   text-align: center;
 }
 
+/* Position the mic mute indicator to the left of the network indicator */
 .mic-mute-indicator {
-  right: 10px;
+  right: 90px; /* Space for network indicator + gap */
   top: 10px;
 }
 
+/* Position the camera mute indicator to the left of the mic mute indicator */
 .camera-mute-indicator {
-  right: 50px;
+  right: 130px; /* Further left of mic mute indicator */
   top: 10px;
 }
 
@@ -699,4 +700,226 @@ input[type="text"] {
   text-align: center;
   font-weight: 500;
   pointer-events: none; /* Prevent it from blocking interactions */
+}
+
+/* Video Stats Overlay Styles */
+.stats-toggle-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 100;
+  background-color: rgba(26, 27, 38, 0.9);
+  padding: 10px 15px;
+  border-radius: 20px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.stats-toggle-container:hover {
+  transform: scale(1.05);
+  background-color: rgba(26, 27, 38, 1);
+}
+
+.stats-toggle-container i {
+  color: var(--accent-color);
+  font-size: 16px;
+}
+
+.stats-toggle-container::after {
+  content: "Stats";
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+#statsToggleInput {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.stats-overlay {
+  position: absolute;
+  bottom: 5px;
+  left: 5px;
+  right: 5px;
+  background-color: rgba(26, 27, 38, 0.8);
+  color: #ffffff;
+  font-size: 10px;
+  font-family: monospace;
+  line-height: 1.2;
+  z-index: 10;
+  display: none;
+  padding: 8px;
+}
+
+.stats-overlay.visible {
+  display: flex;
+}
+
+.stats-column {
+  flex: 1;
+  padding: 0 5px;
+  min-width: 0;
+  max-width: 50%;
+}
+
+/* Make headers display inline */
+.stats-header {
+  font-weight: bold;
+  display: inline;
+  margin-right: 5px;
+  color: white;
+}
+
+.stats-header.network {
+  color: #89b4fa; /* Blue */
+}
+
+.stats-header.performance {
+  color: #f7768e; /* Red */
+}
+
+.stats-header.video {
+  color: #9ece6a; /* Green */
+}
+
+.stats-header.audio {
+  color: #bb9af7; /* Purple */
+}
+
+.stats-column > div {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* Network quality indicator - dot style instead of split circle */
+.network-quality-indicator {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  z-index: 30;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+/* Simple quality indicator */
+.simple-quality {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+}
+
+/* Network quality indicators with dual display */
+.dual-quality-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px; /* Move all the way to the right */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 30;
+  background-color: rgba(26, 27, 38, 0.7);
+  padding: 3px 6px;
+  border-radius: 12px;
+}
+
+.uplink-indicator,
+.downlink-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* Quality colors */
+/* Unknown quality */
+.quality-0 {
+  background-color: #999;
+}
+
+/* Excellent quality */
+.quality-1 {
+  background-color: #3ae678;
+}
+
+/* Good quality, less than optimal bitrate */
+.quality-2 {
+  background-color: #98da55;
+}
+
+/* Slightly impaired communication */
+.quality-3 {
+  background-color: #f5d442;
+}
+
+/* Not smooth communication */
+.quality-4 {
+  background-color: #f9a12c;
+}
+
+/* Poor quality, barely communicate */
+.quality-5 {
+  background-color: #ff5d38;
+}
+
+/* Disconnected, can't communicate */
+.quality-6 {
+  background-color: #ff0000;
+}
+
+.client-stats-overlay {
+  position: fixed;
+  top: 130px; /* Move below the header */
+  right: 20px;
+  width: 300px;
+  background-color: rgba(26, 27, 38, 0.95);
+  color: #ffffff;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: monospace;
+  line-height: 1.4;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--accent-color);
+}
+
+.client-stats-overlay.visible {
+  display: block;
+}
+
+.client-stats-heading {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: var(--accent-color);
+  text-align: center;
+  font-size: 14px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Network quality indicators */
+.network-quality {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-left: 5px;
+  vertical-align: middle;
 }
