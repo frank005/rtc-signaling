@@ -85,6 +85,17 @@ const activePeerChats = new Map();
 // Add variables to track the selected peer
 let selectedPeer = null;
 
+// Add new variables for volume detection
+let volumeDetectionInterval = null;
+const VOLUME_SPEAKING_THRESHOLD = 45; // Updated to use dB values
+const VOLUME_HIGH_THRESHOLD = 55; // Updated to use dB values
+let isTalkingWhileMuted = false;
+let micMuteIndicators = new Map();
+let cameraMuteIndicators = new Map();
+
+// Add new variables to track user states
+const userTrackStates = new Map(); // Map to track the state of each user's tracks
+
 // Update the localVideoLabel creation to be a function
 const localVideoLabel = document.createElement("div");
 localVideoLabel.className = "video-label";
@@ -95,18 +106,45 @@ localVideo.appendChild(localVideoLabel);
 function resetLocalVideo() {
   const localVideo = document.getElementById("localVideo");
   localVideo.innerHTML = "";
+  localVideo.dataset.userId = userIdInput.value;
+  localVideo.classList.remove("video-muted"); // Reset video muted status
   
   // Recreate the local video label
   const localVideoLabel = document.createElement("div");
   localVideoLabel.className = "video-label";
   localVideoLabel.textContent = userIdInput.value || "Local Video";
+  
+  // Create mute indicators for local video with better icon alignment
+  const localMicMuteIndicator = document.createElement("div");
+  localMicMuteIndicator.className = "mute-indicator mic-mute-indicator";
+  localMicMuteIndicator.innerHTML = '<i class="fas fa-microphone-slash" aria-hidden="true"></i>';
+  localMicMuteIndicator.style.display = "none";
+  micMuteIndicators.set(userIdInput.value, localMicMuteIndicator);
+  
+  const localCameraMuteIndicator = document.createElement("div");
+  localCameraMuteIndicator.className = "mute-indicator camera-mute-indicator";
+  localCameraMuteIndicator.innerHTML = '<i class="fas fa-video-slash" aria-hidden="true"></i>';
+  localCameraMuteIndicator.style.display = "none";
+  cameraMuteIndicators.set(userIdInput.value, localCameraMuteIndicator);
+  
+  // Add talking while muted notification
+  const talkingWhileMutedNotification = document.createElement("div");
+  talkingWhileMutedNotification.id = "talking-while-muted";
+  talkingWhileMutedNotification.textContent = "You're talking but your mic is muted!";
+  talkingWhileMutedNotification.style.display = "none";
+  
+  // First append the label and indicators, THEN the video will be played into this container
   localVideo.appendChild(localVideoLabel);
+  localVideo.appendChild(localMicMuteIndicator);
+  localVideo.appendChild(localCameraMuteIndicator);
+  localVideo.appendChild(talkingWhileMutedNotification);
 }
 
 // Function to create a new video element with label
 function createVideoElement(userId) {
   const videoElement = document.createElement("div");
   videoElement.className = "video-player";
+  videoElement.dataset.userId = userId;
   
   const videoLabel = document.createElement("div");
   videoLabel.className = "video-label";
@@ -117,7 +155,22 @@ function createVideoElement(userId) {
     videoLabel.style.color = getUserColor(userId);
   }
   
+  // Add mute indicators with better icon alignment
+  const micMuteIndicator = document.createElement("div");
+  micMuteIndicator.className = "mute-indicator mic-mute-indicator";
+  micMuteIndicator.innerHTML = '<i class="fas fa-microphone-slash" aria-hidden="true"></i>';
+  micMuteIndicator.style.display = "none";
+  micMuteIndicators.set(userId, micMuteIndicator);
+  
+  const cameraMuteIndicator = document.createElement("div");
+  cameraMuteIndicator.className = "mute-indicator camera-mute-indicator";
+  cameraMuteIndicator.innerHTML = '<i class="fas fa-video-slash" aria-hidden="true"></i>';
+  cameraMuteIndicator.style.display = "none";
+  cameraMuteIndicators.set(userId, cameraMuteIndicator);
+  
   videoElement.appendChild(videoLabel);
+  videoElement.appendChild(micMuteIndicator);
+  videoElement.appendChild(cameraMuteIndicator);
   
   return videoElement;
 }
@@ -470,13 +523,17 @@ async function sendPeerMessage() {
 document.getElementById("sendChannelMsgBtn").outerHTML = document.getElementById("sendChannelMsgBtn").outerHTML;
 document.getElementById("sendPeerMsgBtn").outerHTML = document.getElementById("sendPeerMsgBtn").outerHTML;
 
+// Re-fetch the buttons after replacing them
+const refreshedChannelMsgBtn = document.getElementById("sendChannelMsgBtn");
+const refreshedPeerMsgBtn = document.getElementById("sendPeerMsgBtn");
+
 // Add debounced event listeners for buttons
-document.getElementById("sendChannelMsgBtn").addEventListener("click", debounce(async () => {
+refreshedChannelMsgBtn.addEventListener("click", debounce(async () => {
   console.log("Channel send button clicked (debounced)");
   await sendChannelMessage();
 }, 300));
 
-document.getElementById("sendPeerMsgBtn").addEventListener("click", debounce(async () => {
+refreshedPeerMsgBtn.addEventListener("click", debounce(async () => {
   console.log("Peer send button clicked (debounced)");
   await sendPeerMessage();
 }, 300));
@@ -584,10 +641,92 @@ async function initializeRTC(appId, token, userId) {
 
     rtcClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
 
+    // Set parameter to continue getting volume from muted tracks
+    AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+    
+    // Add user-joined event handler to create tiles for users who join with muted tracks
+    rtcClient.on("user-joined", (user) => {
+      console.log(`User ${user.uid} joined the channel`);
+      
+      // Initialize the track state for this user
+      userTrackStates.set(user.uid, {
+        hasAudio: false,
+        hasVideo: false,
+        audioMuted: true,  // Assume muted until we know otherwise
+        videoMuted: true   // Assume muted until we know otherwise
+      });
+      
+      // Create video element for this user if it doesn't exist
+      if (!remoteVideos.has(user.uid)) {
+        const videoElement = createVideoElement(user.uid);
+        remoteVideos.set(user.uid, videoElement);
+        updateVideoGrid();
+        console.log(`Created video element for joined user ${user.uid}`);
+        
+        // Since we assume the user initially has no tracks published,
+        // show the mute indicators and add the video-muted class
+        videoElement.classList.add("video-muted");
+        
+        // Add a muted message for video
+        const mutedMsg = document.createElement("div");
+        mutedMsg.className = "video-muted-text";
+        mutedMsg.textContent = "Video Muted";
+        videoElement.appendChild(mutedMsg);
+        
+        // Show mute indicators
+        const micMuteIndicator = micMuteIndicators.get(user.uid);
+        const cameraMuteIndicator = cameraMuteIndicators.get(user.uid);
+        
+        if (micMuteIndicator) {
+          micMuteIndicator.style.display = "block";
+        }
+        
+        if (cameraMuteIndicator) {
+          cameraMuteIndicator.style.display = "block";
+        }
+      }
+    });
+    
+    // Add user-left event handler to clean up
+    rtcClient.on("user-left", (user) => {
+      console.log(`User ${user.uid} left the channel`);
+      
+      // Remove the user's track state
+      userTrackStates.delete(user.uid);
+      
+      // Remove the user's video element
+      const videoElement = remoteVideos.get(user.uid);
+      if (videoElement) {
+        videoElement.remove();
+        remoteVideos.delete(user.uid);
+        micMuteIndicators.delete(user.uid);
+        cameraMuteIndicators.delete(user.uid);
+        updateVideoGrid();
+      }
+    });
+    
     // Set up RTC event listeners
     rtcClient.on("user-published", async (user, mediaType) => {
       await rtcClient.subscribe(user, mediaType);
-      console.log("Subscribe success");
+      console.log(`Subscribe success to ${user.uid}'s ${mediaType}`);
+
+      // Update the track state for this user
+      const trackState = userTrackStates.get(user.uid) || {
+        hasAudio: false,
+        hasVideo: false,
+        audioMuted: true,
+        videoMuted: true
+      };
+      
+      if (mediaType === "audio") {
+        trackState.hasAudio = true;
+        trackState.audioMuted = false;
+      } else if (mediaType === "video") {
+        trackState.hasVideo = true;
+        trackState.videoMuted = false;
+      }
+      
+      userTrackStates.set(user.uid, trackState);
 
       if (mediaType === "video") {
         // Create or get video element for this user
@@ -596,34 +735,106 @@ async function initializeRTC(appId, token, userId) {
           videoElement = createVideoElement(user.uid);
           remoteVideos.set(user.uid, videoElement);
           updateVideoGrid();
+          console.log(`Created new video element for ${user.uid}`);
         } else {
           videoElement = remoteVideos.get(user.uid);
+          console.log(`Using existing video element for ${user.uid}`);
         }
-        user.videoTrack.play(videoElement);
+        
+        // Remove any previous video-muted state
+        videoElement.classList.remove("video-muted");
+        const mutedMsg = videoElement.querySelector(".video-muted-text");
+        if (mutedMsg) {
+          mutedMsg.style.display = "none";
+          console.log(`Hid video muted message for ${user.uid}`);
+        }
+        
+        // Play the video directly into the container element
+        console.log(`Playing remote video from ${user.uid}`);
+        try {
+          user.videoTrack.play(videoElement);
+          console.log(`Successfully started playing video for ${user.uid}`);
+        } catch (error) {
+          console.error(`Error playing remote video for ${user.uid}:`, error);
+        }
+        
+        // Update camera mute indicator for this user
+        const cameraMuteIndicator = cameraMuteIndicators.get(user.uid);
+        if (cameraMuteIndicator) {
+          cameraMuteIndicator.style.display = "none";
+          console.log(`Hiding camera mute indicator for ${user.uid}`);
+        }
       }
       if (mediaType === "audio") {
+        console.log(`Playing remote audio from ${user.uid}`);
         user.audioTrack.play();
+        
+        // Update mic mute indicator for this user
+        const micMuteIndicator = micMuteIndicators.get(user.uid);
+        if (micMuteIndicator) {
+          micMuteIndicator.style.display = "none";
+          console.log(`Hiding mic mute indicator for ${user.uid}`);
+        }
       }
     });
 
     rtcClient.on("user-unpublished", (user, mediaType) => {
+      // Update the track state for this user
+      const trackState = userTrackStates.get(user.uid) || {
+        hasAudio: false,
+        hasVideo: false,
+        audioMuted: true,
+        videoMuted: true
+      };
+      
+      if (mediaType === "audio") {
+        trackState.audioMuted = true;
+      } else if (mediaType === "video") {
+        trackState.videoMuted = true;
+      }
+      
+      userTrackStates.set(user.uid, trackState);
+      
       if (mediaType === "video") {
         const videoElement = remoteVideos.get(user.uid);
         if (videoElement) {
-          user.videoTrack.stop();
-          videoElement.remove();
-          remoteVideos.delete(user.uid);
-          updateVideoGrid();
+          // Check if videoTrack exists before trying to stop it
+          if (user.videoTrack) {
+            user.videoTrack.stop();
+            console.log(`Stopped remote video track for ${user.uid}`);
+          }
+          
+          // Show camera mute indicator for this user
+          const cameraMuteIndicator = cameraMuteIndicators.get(user.uid);
+          if (cameraMuteIndicator) {
+            cameraMuteIndicator.style.display = "block";
+            console.log(`Showing camera mute indicator for ${user.uid}`);
+          }
+          
+          // Add a visual indication for disabled video
+          videoElement.classList.add("video-muted");
+          
+          // Add a muted message if not exists
+          let mutedMsg = videoElement.querySelector(".video-muted-text");
+          if (!mutedMsg) {
+            mutedMsg = document.createElement("div");
+            mutedMsg.className = "video-muted-text";
+            mutedMsg.textContent = "Video Muted";
+            videoElement.appendChild(mutedMsg);
+            console.log(`Added video muted message for ${user.uid}`);
+          } else {
+            mutedMsg.style.display = "block";
+            console.log(`Showing existing video muted message for ${user.uid}`);
+          }
         }
       }
-    });
-
-    rtcClient.on("user-left", (user) => {
-      const videoElement = remoteVideos.get(user.uid);
-      if (videoElement) {
-        videoElement.remove();
-        remoteVideos.delete(user.uid);
-        updateVideoGrid();
+      if (mediaType === "audio") {
+        // Show mic mute indicator for this user
+        const micMuteIndicator = micMuteIndicators.get(user.uid);
+        if (micMuteIndicator) {
+          micMuteIndicator.style.display = "block";
+          console.log(`Showing mic mute indicator for ${user.uid}`);
+        }
       }
     });
 
@@ -898,12 +1109,55 @@ joinChannelBtn.addEventListener("click", async () => {
     return;
   }
   try {
-    // Create and publish tracks
-    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-    localVideoTrack = await AgoraRTC.createCameraVideoTrack();
+    // Reset local video with label first
+    resetLocalVideo();
     
-    // Play local video
-    localVideoTrack.play(localVideo);
+    // Create tracks with specific states
+    const audioTrackConfig = { muted: false };
+    const videoTrackConfig = { enabled: true };
+    
+    // Create and publish tracks
+    localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack(audioTrackConfig);
+    localVideoTrack = await AgoraRTC.createCameraVideoTrack(videoTrackConfig);
+    
+    // Initialize my own track state
+    const myUserId = userIdInput.value;
+    userTrackStates.set(myUserId, {
+      hasAudio: true,
+      hasVideo: true,
+      audioMuted: false,
+      videoMuted: false
+    });
+    
+    // Clear any previous video-muted state
+    const localVideoElement = document.getElementById("localVideo");
+    localVideoElement.classList.remove("video-muted");
+    const mutedMsg = localVideoElement.querySelector(".video-muted-text");
+    if (mutedMsg) {
+      mutedMsg.style.display = "none";
+    }
+    
+    // Set parameter to continue getting volume from muted tracks
+    AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+    
+    // Clear any existing videos that might be inside
+    const existingVideos = localVideoElement.querySelectorAll("video");
+    existingVideos.forEach(v => {
+      v.srcObject = null;
+      v.remove();
+      console.log("Removed existing local video element");
+    });
+    
+    // Play local video directly
+    console.log("Playing local video track");
+    if (localVideoTrack) {
+      try {
+        localVideoTrack.play("localVideo");
+        console.log("Successfully started playing local video");
+      } catch (error) {
+        console.error("Error playing local video:", error);
+      }
+    }
     
     // Join channel and publish tracks
     await rtcClient.join(
@@ -916,6 +1170,9 @@ joinChannelBtn.addEventListener("click", async () => {
     // Publish tracks
     await rtcClient.publish([localAudioTrack, localVideoTrack]);
     
+    // Start volume detection
+    startVolumeDetection();
+    
     // Enable controls and set initial states
     joinChannelBtn.disabled = true;
     leaveChannelBtn.disabled = false;
@@ -923,8 +1180,22 @@ joinChannelBtn.addEventListener("click", async () => {
     toggleAudioBtn.disabled = false;
     
     // Set initial button text based on track states
-    toggleVideoBtn.textContent = "Mute Video";
-    toggleAudioBtn.textContent = "Mute Audio";
+    const videoEnabled = localVideoTrack.enabled;
+    const audioMuted = localAudioTrack.muted;
+    
+    toggleVideoBtn.textContent = videoEnabled ? "Mute Video" : "Unmute Video";
+    toggleAudioBtn.textContent = audioMuted ? "Unmute Audio" : "Mute Audio";
+    
+    // Update the mute indicators
+    const micMuteIndicator = micMuteIndicators.get(userIdInput.value);
+    if (micMuteIndicator) {
+      micMuteIndicator.style.display = audioMuted ? "block" : "none";
+    }
+    
+    const cameraMuteIndicator = cameraMuteIndicators.get(userIdInput.value);
+    if (cameraMuteIndicator) {
+      cameraMuteIndicator.style.display = videoEnabled ? "none" : "block";
+    }
     
     channelStatus.textContent = `Joined RTC channel: ${channelName}`;
     
@@ -942,6 +1213,9 @@ leaveChannelBtn.addEventListener("click", async () => {
   if (!rtcClient) return;
   try {
     console.log("Leave channel button clicked");
+    
+    // Stop volume detection
+    stopVolumeDetection();
     
     // Unpublish tracks
     if (localAudioTrack) {
@@ -962,12 +1236,17 @@ leaveChannelBtn.addEventListener("click", async () => {
     console.log("Resetting local video element");
     resetLocalVideo();
     
+    // Clear track states for all users, including myself
+    userTrackStates.clear();
+    
     // Clear remote videos
     console.log("Clearing remote videos");
     remoteVideos.forEach((video) => {
       video.remove();
     });
     remoteVideos.clear();
+    micMuteIndicators.clear();
+    cameraMuteIndicators.clear();
     
     // Clear additional videos container
     console.log("Clearing additional videos container");
@@ -1007,6 +1286,9 @@ async function unsubscribe() {
   try {
     console.log("Unsubscribing from channel...");
     
+    // Stop volume detection
+    stopVolumeDetection();
+    
     // Add a system message with unsubscribe status
     const timestamp = new Date().toLocaleTimeString();
     const channelName = subscribedChannel;
@@ -1031,12 +1313,17 @@ async function unsubscribe() {
     console.log("Resetting local video element");
     resetLocalVideo();
     
+    // Clear track states for all users
+    userTrackStates.clear();
+    
     // Clear remote videos
     console.log("Clearing remote videos");
     remoteVideos.forEach((video) => {
       video.remove();
     });
     remoteVideos.clear();
+    micMuteIndicators.clear();
+    cameraMuteIndicators.clear();
     
     // Clear additional videos container
     console.log("Clearing additional videos container");
@@ -1102,36 +1389,193 @@ async function unsubscribe() {
   }
 }
 
-// Add event listeners for toggle buttons
+// Update toggle video button to show mute indicator
 toggleVideoBtn.addEventListener("click", async () => {
   if (!localVideoTrack) return;
   
   const enabled = !localVideoTrack.enabled;
+  console.log(`Setting video enabled to: ${enabled}`);
   await localVideoTrack.setEnabled(enabled);
   toggleVideoBtn.textContent = enabled ? "Mute Video" : "Unmute Video";
   
-  // If disabled, stop publishing the video track
+  // Update track state
+  const myUserId = userIdInput.value;
+  const trackState = userTrackStates.get(myUserId) || {
+    hasAudio: true,
+    hasVideo: true,
+    audioMuted: localAudioTrack ? localAudioTrack.muted : false,
+    videoMuted: !enabled
+  };
+  trackState.videoMuted = !enabled;
+  userTrackStates.set(myUserId, trackState);
+  
+  // Update the camera mute indicator
+  const cameraMuteIndicator = cameraMuteIndicators.get(userIdInput.value);
+  if (cameraMuteIndicator) {
+    cameraMuteIndicator.style.display = enabled ? "none" : "block";
+  }
+  
+  // Add a visual indication for disabled video
+  const localVideoElement = document.getElementById("localVideo");
+  if (localVideoElement) {
+    if (!enabled) {
+      // For muted state, just add the mute message overlay
+      localVideoElement.classList.add("video-muted");
+      
+      // Add a muted message if not exists
+      let mutedMsg = localVideoElement.querySelector(".video-muted-text");
+      if (!mutedMsg) {
+        mutedMsg = document.createElement("div");
+        mutedMsg.className = "video-muted-text";
+        mutedMsg.textContent = "Video Muted";
+        localVideoElement.appendChild(mutedMsg);
+      } else {
+        mutedMsg.style.display = "block";
+      }
+      
+      console.log("Video muted - adding video-muted class and muted text");
+    } else {
+      // For unmuted state, remove the overlay
+      localVideoElement.classList.remove("video-muted");
+      
+      // Hide muted message if exists
+      const mutedMsg = localVideoElement.querySelector(".video-muted-text");
+      if (mutedMsg) {
+        mutedMsg.style.display = "none";
+      }
+      
+      console.log("Video unmuted - removing video-muted class and muted text");
+    }
+  }
+  
+  // Publish or unpublish the video track
   if (!enabled) {
     await rtcClient.unpublish([localVideoTrack]);
   } else {
     await rtcClient.publish([localVideoTrack]);
+    
+    // Replay the video when enabling
+    try {
+      localVideoTrack.play("localVideo");
+      console.log("Re-playing local video after unmute");
+    } catch (error) {
+      console.error("Error re-playing local video:", error);
+    }
   }
 });
 
+// Update toggle audio button to use setMuted instead of setEnabled
 toggleAudioBtn.addEventListener("click", async () => {
   if (!localAudioTrack) return;
   
-  const enabled = !localAudioTrack.enabled;
-  await localAudioTrack.setEnabled(enabled);
-  toggleAudioBtn.textContent = enabled ? "Mute Audio" : "Unmute Audio";
+  const muted = !localAudioTrack.muted;
+  console.log(`Setting audio muted to: ${muted}`);
+  await localAudioTrack.setMuted(muted);
+  toggleAudioBtn.textContent = muted ? "Unmute Audio" : "Mute Audio";
   
-  // If disabled, stop publishing the audio track
-  if (!enabled) {
-    await rtcClient.unpublish([localAudioTrack]);
-  } else {
-    await rtcClient.publish([localAudioTrack]);
+  // Update track state
+  const myUserId = userIdInput.value;
+  const trackState = userTrackStates.get(myUserId) || {
+    hasAudio: true,
+    hasVideo: true,
+    audioMuted: muted,
+    videoMuted: localVideoTrack ? !localVideoTrack.enabled : false
+  };
+  trackState.audioMuted = muted;
+  userTrackStates.set(myUserId, trackState);
+  
+  // Update the mic mute indicator
+  const micMuteIndicator = micMuteIndicators.get(userIdInput.value);
+  if (micMuteIndicator) {
+    micMuteIndicator.style.display = muted ? "block" : "none";
   }
 });
+
+// Start volume detection and update UI
+function startVolumeDetection() {
+  console.log("Starting volume detection with thresholds:", {
+    speakingThreshold: VOLUME_SPEAKING_THRESHOLD,
+    highThreshold: VOLUME_HIGH_THRESHOLD
+  });
+  
+  // Set parameters for volume detection
+  AgoraRTC.setParameter("AUDIO_VOLUME_INDICATION_INTERVAL", 200); // 200ms interval
+  AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+
+  // Enable audio volume indicator on the RTC client with more frequent updates
+  rtcClient.enableAudioVolumeIndicator({
+    interval: 200, // 200ms interval for more responsive updates
+    smooth: 2 // Less smoothing for more responsive detection
+  });
+  
+  // Set up the volume-indicator event
+  rtcClient.on("volume-indicator", volumes => {
+    console.log("Volume indicator event:", volumes.map(v => ({uid: v.uid, level: v.level})));
+    volumes.forEach(volume => {
+      // Handle remote users
+      if (volume.uid !== userIdInput.value) {
+        const videoElement = remoteVideos.get(volume.uid);
+        if (videoElement) {
+          // Add speaking border if volume is above threshold
+          if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
+            console.log(`Remote user ${volume.uid} is speaking with level ${volume.level}`);
+            videoElement.classList.add("speaking");
+          } else {
+            videoElement.classList.remove("speaking");
+          }
+        }
+      } else {
+        // This handles the local user volume from rtcClient's perspective
+        const localVideoElement = document.getElementById("localVideo");
+        
+        if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
+          console.log(`Local user detected speaking from volume-indicator with level ${volume.level}`);
+          localVideoElement.classList.add("speaking");
+        } else {
+          localVideoElement.classList.remove("speaking");
+        }
+      }
+    });
+  });
+  
+  // Set up interval for local volume monitoring as backup
+  volumeDetectionInterval = setInterval(() => {
+    if (localAudioTrack) {
+      try {
+        // Get volume level - use 0-100 scale for easier comparison
+        const volumeLevel = localAudioTrack.getVolumeLevel() * 100;
+        
+        console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
+        
+        // Show talking while muted notification
+        const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
+        if (talkingWhileMutedNotification && localAudioTrack.muted && volumeLevel > VOLUME_HIGH_THRESHOLD) {
+          console.log(`TALKING WHILE MUTED DETECTED! Level: ${volumeLevel}`);
+          if (!isTalkingWhileMuted) {
+            console.log("Showing talking while muted notification");
+            talkingWhileMutedNotification.style.display = "block";
+            isTalkingWhileMuted = true;
+            setTimeout(() => {
+              console.log("Hiding talking while muted notification after timeout");
+              talkingWhileMutedNotification.style.display = "none";
+              isTalkingWhileMuted = false;
+            }, 3000);
+          }
+        }
+      } catch (error) {
+        console.error("Error getting volume level:", error);
+      }
+    }
+  }, 200);
+}
+
+// Stop volume detection
+function stopVolumeDetection() {
+  if (volumeDetectionInterval) {
+    clearInterval(volumeDetectionInterval);
+    volumeDetectionInterval = null;
+  }
+}
 
 // Function to update video grid layout
 function updateVideoGrid() {

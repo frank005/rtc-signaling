@@ -14,6 +14,9 @@ This project implements a feature-rich video conferencing and chat application u
   - Device selection (camera and microphone)
   - Audio/video mute controls
   - Custom video labels with user IDs
+  - Active speaker detection with visual indicator
+  - Microphone and camera mute indicators
+  - "Talking while muted" notification
 
 - **Real-time Messaging**
   - Channel-based group chat

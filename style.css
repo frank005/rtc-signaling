@@ -96,13 +96,13 @@ h1 {
 }
 
 .video-player {
+  position: relative;
   width: 100%;
   aspect-ratio: 16/9;
   background-color: #16161e;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #414868;
-  position: relative;
 }
 
 .video-player video {
@@ -605,4 +605,98 @@ input[type="text"] {
   border-radius: 8px;
   margin-bottom: 10px;
   border: 1px solid #414868;
+}
+
+/* Video player with speaking indication */
+.video-player.speaking {
+  border: 3px solid #7aa2f7;
+  box-shadow: 0 0 10px rgba(122, 162, 247, 0.6);
+}
+
+/* Mute indicators */
+.mute-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(231, 76, 60, 0.8);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20; /* Increase z-index to ensure it's always on top */
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+  pointer-events: none; /* Ensure it doesn't block interactions */
+  text-align: center;
+}
+
+/* Center the icons within the circle - simplified approach */
+.mute-indicator i {
+  margin: 0;
+  padding: 0;
+  /* Fixed size for consistency */
+  font-size: 14px;
+  /* Remove any inherited styles that might affect positioning */
+  line-height: 32px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.mic-mute-indicator {
+  right: 10px;
+  top: 10px;
+}
+
+.camera-mute-indicator {
+  right: 50px;
+  top: 10px;
+}
+
+/* Video muted indication - only apply when explicitly muted */
+.video-muted {
+  background-color: #1a1b26 !important;
+}
+
+/* Talking while muted notification */
+#talking-while-muted {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(231, 76, 60, 0.9);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  z-index: 20;
+  animation: pulse 1s infinite alternate;
+  white-space: nowrap;
+  display: none;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.video-muted-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-size: 16px;
+  background-color: rgba(231, 76, 60, 0.8);
+  padding: 8px 16px;
+  border-radius: 4px;
+  z-index: 30; /* Increase z-index to ensure it's always visible */
+  text-align: center;
+  font-weight: 500;
+  pointer-events: none; /* Prevent it from blocking interactions */
 }
