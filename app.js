@@ -87,7 +87,7 @@ let selectedPeer = null;
 
 // Add new variables for volume detection
 let volumeDetectionInterval = null;
-const VOLUME_SPEAKING_THRESHOLD = 45; // Updated to use dB values
+const VOLUME_SPEAKING_THRESHOLD = 50; // Updated to use dB values
 const VOLUME_HIGH_THRESHOLD = 55; // Updated to use dB values
 let isTalkingWhileMuted = false;
 let micMuteIndicators = new Map();
@@ -2078,7 +2078,7 @@ async function updateStatsDisplays() {
       // Left column
       html += '<div class="stats-column">';
       html += '<span class="stats-header network">Network</span> ';
-      html += `<div>Quality: U-<span class="network-quality}">${getQualityText(localNetworkQuality.uplink)}</span> D-<span class="network-quality}">${getQualityText(localNetworkQuality.downlink)}</span></div>`;
+      html += `<div>Quality: U- ${getQualityText(localNetworkQuality.uplink)} D- ${getQualityText(localNetworkQuality.downlink)}</div>`;
       
       // Direct access using correct property names
       let rtt = localVideoStats.sendRttMs || 0;
@@ -2202,7 +2202,7 @@ async function updateStatsDisplays() {
           // Left column
           html += '<div class="stats-column">';
           html += '<span class="stats-header network">Network</span> ';
-          html += `<div>Quality: U-<span class="network-quality">${getQualityText(remoteNetworkQuality.uplink)}</span> D-<span class="network-quality">${getQualityText(remoteNetworkQuality.downlink)}</span></div>`;
+          html += `<div>Quality: U- ${getQualityText(remoteNetworkQuality.uplink)} D- ${getQualityText(remoteNetworkQuality.downlink)}</div>`;
           //Removed this: quality-${remoteNetworkQuality.uplink} from the quality classes (local and remote)
           if (remoteVideoStats_uid) {
             // Direct access using correct property names
