@@ -1658,11 +1658,18 @@ function startVolumeDetection() {
       const volumeLevel = localAudioTrack.getVolumeLevel() * 100; // Convert to 0-100 scale
       console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
       
-      // Add speaking border if volume is above threshold
+      // Add speaking border if volume is above threshold AND user is not muted
       const localVideoElement = document.getElementById("localVideo");
       if (volumeLevel > VOLUME_SPEAKING_THRESHOLD) {
         console.log(`Local user is speaking with level ${volumeLevel}`);
-        localVideoElement.classList.add("speaking");
+        
+        // Only add speaking class if user is NOT muted
+        if (!localAudioTrack.muted) {
+          localVideoElement.classList.add("speaking");
+        } else {
+          // If user is muted, ensure the speaking class is removed
+          localVideoElement.classList.remove("speaking");
+        }
       } else {
         localVideoElement.classList.remove("speaking");
       }
@@ -2071,7 +2078,7 @@ async function updateStatsDisplays() {
       // Left column
       html += '<div class="stats-column">';
       html += '<span class="stats-header network">Network</span> ';
-      html += `<div>Quality: <span class="network-quality quality-${localNetworkQuality.uplink}">${getQualityText(localNetworkQuality.uplink)}</span></div>`;
+      html += `<div>Quality: U-<span class="network-quality}">${getQualityText(localNetworkQuality.uplink)}</span> D-<span class="network-quality}">${getQualityText(localNetworkQuality.downlink)}</span></div>`;
       
       // Direct access using correct property names
       let rtt = localVideoStats.sendRttMs || 0;
@@ -2195,8 +2202,8 @@ async function updateStatsDisplays() {
           // Left column
           html += '<div class="stats-column">';
           html += '<span class="stats-header network">Network</span> ';
-          html += `<div>Quality: <span class="network-quality quality-${remoteNetworkQuality.uplink}">${getQualityText(remoteNetworkQuality.uplink)}</span></div>`;
-          
+          html += `<div>Quality: U-<span class="network-quality">${getQualityText(remoteNetworkQuality.uplink)}</span> D-<span class="network-quality">${getQualityText(remoteNetworkQuality.downlink)}</span></div>`;
+          //Removed this: quality-${remoteNetworkQuality.uplink} from the quality classes (local and remote)
           if (remoteVideoStats_uid) {
             // Direct access using correct property names
             let delay = remoteVideoStats_uid.end2EndDelay || 0;
@@ -2250,7 +2257,7 @@ async function updateStatsDisplays() {
             let publishDuration = remoteVideoStats_uid.publishDuration || 0;
             
             html += `<div>Video Bitrate: ${videoBitrate.toFixed(2)} Kbps</div>`;
-            html += `<div>Frozen Time: ${freezeTime.toFixed(0)}ms</div>`;
+            html += `<div>Freeze Time: ${freezeTime.toFixed(0)}ms</div>`;
             html += `<div>Freeze Rate: ${freezeRate.toFixed(1)}%</div>`;
             html += `<div>Video Bytes: ${videoBytes.toFixed(2)} KB</div>`;
             html += `<div>Duration: ${duration.toFixed(0)}s</div>`;
@@ -2292,12 +2299,12 @@ async function updateStatsDisplays() {
 function getQualityText(quality) {
   switch (Number(quality)) {
     case 0: return "Unknown";
-    case 1: return "Excellent";
+    case 1: return "Exc";
     case 2: return "Good";
     case 3: return "Fair";
     case 4: return "Poor";
     case 5: return "Bad";
-    case 6: return "Disconnected";
+    case 6: return "Dis";
     default: return "Unknown";
   }
 }
