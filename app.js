@@ -117,6 +117,10 @@ localVideoLabel.className = "video-label";
 localVideoLabel.textContent = userIdInput.value || "Local Video";
 localVideo.appendChild(localVideoLabel);
 
+// Set parameters for volume detection
+AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+AgoraRTC.setParameter("AUDIO_VOLUME_INDICATION_INTERVAL", 200); // 200ms interval
+
 // Function to create a dual quality indicator (uplink/downlink)
 function createDualQualityIndicator() {
   const indicator = document.createElement("div");
@@ -435,6 +439,20 @@ loginBtn.addEventListener("click", async () => {
 
     // Update local video label with user ID
     localVideoLabel.textContent = userId;
+    
+    // Set up direct HTML onclick attributes for the send buttons
+    const channelMsgBtn = document.getElementById("sendChannelMsgBtn");
+    const peerMsgBtn = document.getElementById("sendPeerMsgBtn");
+    
+    if (channelMsgBtn) {
+      console.log("Setting up direct HTML onclick attribute for channel button after login");
+      channelMsgBtn.setAttribute("onclick", "sendChannelMessage()");
+    }
+    
+    if (peerMsgBtn) {
+      console.log("Setting up direct HTML onclick attribute for peer button after login");
+      peerMsgBtn.setAttribute("onclick", "sendPeerMessage()");
+    }
   } catch (err) {
     console.error("Login failed:", err);
     alert("Login failed: " + err.message);
@@ -532,21 +550,6 @@ function debounce(func, wait) {
   };
 }
 
-// Add event listeners for enter key in message inputs
-document.getElementById("channelMsg").addEventListener("keypress", async (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    await sendChannelMessage();
-  }
-});
-
-document.getElementById("peerMsg").addEventListener("keypress", async (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    await sendPeerMessage();
-  }
-});
-
 // Channel message sending logic
 async function sendChannelMessage() {
   console.log("sendChannelMessage called");
@@ -615,24 +618,55 @@ async function sendPeerMessage() {
   }
 }
 
-// Remove all existing click event listeners
-document.getElementById("sendChannelMsgBtn").outerHTML = document.getElementById("sendChannelMsgBtn").outerHTML;
-document.getElementById("sendPeerMsgBtn").outerHTML = document.getElementById("sendPeerMsgBtn").outerHTML;
+// Remove all existing click event listeners and reapply them correctly
+function refreshButtonEventListeners() {
+  console.log("refreshButtonEventListeners function is deprecated");
+}
 
-// Re-fetch the buttons after replacing them
-const refreshedChannelMsgBtn = document.getElementById("sendChannelMsgBtn");
-const refreshedPeerMsgBtn = document.getElementById("sendPeerMsgBtn");
-
-// Add debounced event listeners for buttons
-refreshedChannelMsgBtn.addEventListener("click", debounce(async () => {
-  console.log("Channel send button clicked (debounced)");
-  await sendChannelMessage();
-}, 300));
-
-refreshedPeerMsgBtn.addEventListener("click", debounce(async () => {
-  console.log("Peer send button clicked (debounced)");
-  await sendPeerMessage();
-}, 300));
+// Call the function to refresh button listeners when the document is ready
+document.addEventListener('DOMContentLoaded', function() {
+  console.log("DOM Content Loaded - Setting up initial event listeners");
+  
+  // Instead of cloning buttons, add direct HTML onclick attributes
+  const channelMsgBtn = document.getElementById("sendChannelMsgBtn");
+  const peerMsgBtn = document.getElementById("sendPeerMsgBtn");
+  
+  if (channelMsgBtn) {
+    console.log("Setting up direct HTML onclick attribute for channel button");
+    // Use HTML onclick attribute which works more reliably
+    channelMsgBtn.setAttribute("onclick", "sendChannelMessage()");
+  }
+  
+  if (peerMsgBtn) {
+    console.log("Setting up direct HTML onclick attribute for peer button");
+    // Use HTML onclick attribute which works more reliably
+    peerMsgBtn.setAttribute("onclick", "sendPeerMessage()");
+  }
+  
+  // Also set up the keyboard event listeners
+  const channelMsg = document.getElementById("channelMsg");
+  const peerMsg = document.getElementById("peerMsg");
+  
+  if (channelMsg) {
+    channelMsg.addEventListener("keypress", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        console.log("Enter key pressed in channel message input");
+        e.preventDefault();
+        sendChannelMessage();
+      }
+    });
+  }
+  
+  if (peerMsg) {
+    peerMsg.addEventListener("keypress", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        console.log("Enter key pressed in peer message input");
+        e.preventDefault();
+        sendPeerMessage();
+      }
+    });
+  }
+});
 
 /** Handle channel messages from RTM 2.x events. */
 function handleRtmChannelMessage(evt) {
@@ -736,9 +770,6 @@ async function initializeRTC(appId, token, userId) {
     }
 
     rtcClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-
-    // Set parameter to continue getting volume from muted tracks
-    AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
     
     // Add user-joined event handler to create tiles for users who join with muted tracks
     rtcClient.on("user-joined", (user) => {
@@ -935,10 +966,6 @@ async function initializeRTC(appId, token, userId) {
       }
     });
 
-    // Only join if we have a channel name
-    if (channelNameInput.value.trim()) {
-      await rtcClient.join(appId, channelNameInput.value, token, userId);
-    }
   } catch (error) {
     console.error("RTC initialization failed:", error);
     if (error.message.includes("UID_CONFLICT")) {
@@ -946,31 +973,6 @@ async function initializeRTC(appId, token, userId) {
         "UID conflict detected. Please log out and try again with a different user ID."
       );
     }
-  }
-}
-
-async function joinChannel() {
-  try {
-    rtmChannel = rtmClient.createChannel(channelNameInput.value);
-
-    rtmChannel.on("ChannelMessage", (message, memberId) => {
-      displayChannelMessage(memberId, message.text);
-    });
-
-    rtmChannel.on("MemberJoined", (memberId) => {
-      displaySystemMessage(channelChatBox, `${memberId} joined the channel`);
-    });
-
-    rtmChannel.on("MemberLeft", (memberId) => {
-      displaySystemMessage(channelChatBox, `${memberId} left the channel`);
-    });
-
-    await rtmChannel.join();
-    updateChannelStatus("Connected to channel");
-    enableChannelControls(true);
-  } catch (error) {
-    console.error("Error joining channel:", error);
-    updateChannelStatus("Failed to join channel: " + error.message);
   }
 }
 
@@ -1234,8 +1236,6 @@ joinChannelBtn.addEventListener("click", async () => {
       mutedMsg.style.display = "none";
     }
     
-    // Set parameter to continue getting volume from muted tracks
-    AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
     
     // Clear any existing videos that might be inside
     const existingVideos = localVideoElement.querySelectorAll("video");
@@ -1315,19 +1315,9 @@ joinChannelBtn.addEventListener("click", async () => {
 
 // Update the leave channel handler
 leaveChannelBtn.addEventListener("click", async () => {
-  if (!rtcClient) {
-    console.warn("No RTC client to leave");
-    return;
-  }
-  
+  if (!rtcClient) return;
   try {
     console.log("Leave channel button clicked");
-    
-    // Stop network quality polling
-    stopRemoteNetworkQualityPolling();
-    
-    // Stop stats updates
-    stopVideoStatsUpdates();
     
     // Stop volume detection
     stopVolumeDetection();
@@ -1351,17 +1341,22 @@ leaveChannelBtn.addEventListener("click", async () => {
     console.log("Resetting local video element");
     resetLocalVideo();
     
-    // Clear track states for all users, including myself
-    userTrackStates.clear();
-    
     // Clear remote videos
     console.log("Clearing remote videos");
     remoteVideos.forEach((video) => {
+      // Remove speaking class
+      video.classList.remove("speaking");
       video.remove();
     });
     remoteVideos.clear();
     micMuteIndicators.clear();
     cameraMuteIndicators.clear();
+    
+    // Ensure local video doesn't have speaking class
+    const localVideoElem = document.getElementById("localVideo");
+    if (localVideoElem) {
+      localVideoElem.classList.remove("speaking");
+    }
     
     // Clear additional videos container
     console.log("Clearing additional videos container");
@@ -1372,6 +1367,7 @@ leaveChannelBtn.addEventListener("click", async () => {
     const remoteVideo = document.getElementById("remoteVideo");
     remoteVideo.innerHTML = "";
     remoteVideo.classList.remove("visible");
+    remoteVideo.classList.remove("speaking");
     
     // Leave channel
     console.log("Leaving RTC channel");
@@ -1401,33 +1397,13 @@ async function unsubscribe() {
   try {
     console.log("Unsubscribing from channel...");
     
-    // Stop network quality polling
-    stopRemoteNetworkQualityPolling();
-    
-    // Stop stats updates
-    stopVideoStatsUpdates();
-    
-    // Reset toggle checkbox state if it exists
-    const statsToggle = document.getElementById('statsToggleInput');
-    if (statsToggle) {
-      statsToggle.checked = false;
-      videoStatsEnabled = false;
-    }
-    
-    // Hide client stats overlay if it exists
-    if (clientStatsOverlay) {
-      clientStatsOverlay.classList.remove('visible');
-    }
-    
     // Stop volume detection
     stopVolumeDetection();
     
     // Add a system message with unsubscribe status
-    if (subscribedChannel) {
-      const timestamp = new Date().toLocaleTimeString();
-      const channelName = subscribedChannel;
-      addChatMessage(channelChatBox, `[${timestamp}] [System] You unsubscribed from channel: ${channelName}`);
-    }
+    const timestamp = new Date().toLocaleTimeString();
+    const channelName = subscribedChannel;
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You unsubscribed from channel: ${channelName}`);
     
     // First, stop and close local tracks
     if (localAudioTrack) {
@@ -1448,12 +1424,17 @@ async function unsubscribe() {
     console.log("Resetting local video element");
     resetLocalVideo();
     
-    // Clear track states for all users
-    userTrackStates.clear();
+    // Ensure local video doesn't have speaking class
+    const localVideoElem = document.getElementById("localVideo");
+    if (localVideoElem) {
+      localVideoElem.classList.remove("speaking");
+    }
     
     // Clear remote videos
     console.log("Clearing remote videos");
     remoteVideos.forEach((video) => {
+      // Remove speaking class
+      video.classList.remove("speaking");
       video.remove();
     });
     remoteVideos.clear();
@@ -1462,23 +1443,23 @@ async function unsubscribe() {
     
     // Clear additional videos container
     console.log("Clearing additional videos container");
-    const additionalVideosElem = document.getElementById("additionalVideos");
-    if (additionalVideosElem) {
-      additionalVideosElem.innerHTML = "";
-    }
+    document.getElementById("additionalVideos").innerHTML = "";
     
     // Hide remote video container
     console.log("Clearing remote video container");
     const remoteVideo = document.getElementById("remoteVideo");
-    if (remoteVideo) {
-      remoteVideo.innerHTML = "";
-      remoteVideo.classList.remove("visible");
-    }
+    remoteVideo.innerHTML = "";
+    remoteVideo.classList.remove("visible");
+    remoteVideo.classList.remove("speaking");
     
     // Leave RTC channel
     if (rtcClient) {
       console.log("Leaving RTC channel");
-      await rtcClient.leave();
+      try {
+        await rtcClient.leave();
+      } catch (err) {
+        console.warn("Error leaving RTC channel:", err);
+      }
     }
     
     // Unsubscribe from RTM channel
@@ -1489,13 +1470,11 @@ async function unsubscribe() {
     }
     
     // Clean up peer chats
-    if (rtmClient) {
-      for (const [peerId] of activePeerChats) {
-        try {
-          await rtmClient.unsubscribe(peerId);
-        } catch (err) {
-          console.error(`Error unsubscribing from peer ${peerId}:`, err);
-        }
+    for (const [peerId] of activePeerChats) {
+      try {
+        await rtmClient.unsubscribe(peerId);
+      } catch (err) {
+        console.error(`Error unsubscribing from peer ${peerId}:`, err);
       }
     }
     activePeerChats.clear();
@@ -1577,6 +1556,7 @@ document.addEventListener('DOMContentLoaded', function() {
       clientStatsOverlay.classList.remove('visible');
       videoStatsOverlays.forEach(overlay => {
         overlay.classList.remove('visible');
+        overlay.style.display = "none"; // Ensure display is also set to none
       });
     }
   });
@@ -1631,81 +1611,129 @@ function updateUIForDisconnected() {
   document.getElementById("participantsList").innerHTML = "";
 }
 
-// Start volume detection and update UI
-function startVolumeDetection() {
-  // Set parameters for volume detection
-  AgoraRTC.setParameter("AUDIO_VOLUME_INDICATION_INTERVAL", 200); // 200ms interval
-  AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+// Function to stop volume detection
+function stopVolumeDetection() {
+  if (volumeDetectionInterval) {
+    console.log("Stopping volume detection");
+    clearInterval(volumeDetectionInterval);
+    volumeDetectionInterval = null;
+    
+    // Clean up - remove any speaking classes
+    document.getElementById("localVideo")?.classList.remove("speaking");
+    
+    // Clear speaking classes from all remote videos
+    remoteVideos.forEach((video) => {
+      video.classList.remove("speaking");
+    });
+    
+    // Remove any talking while muted notification
+    const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
+    if (talkingWhileMutedNotification) {
+      talkingWhileMutedNotification.style.display = "none";
+    }
+    isTalkingWhileMuted = false;
+  }
+}
 
-  // Enable audio volume indicator on the RTC client with more frequent updates
-  rtcClient.enableAudioVolumeIndicator({
-    interval: 200, // 200ms interval for more responsive updates
-    smooth: 2 // Less smoothing for more responsive detection
-  });
+// Start volume detection and update UI - using direct polling approach
+function startVolumeDetection() {
+  console.log("Starting volume detection with polling approach");
   
+  // Clear any existing interval
   if (volumeDetectionInterval) {
     clearInterval(volumeDetectionInterval);
   }
   
+  // Set parameters for volume detection
+  AgoraRTC.setParameter("AUDIO_VOLUME_INDICATION_INTERVAL", 200); // 200ms interval
+  AgoraRTC.setParameter("GET_VOLUME_OF_MUTED_AUDIO_TRACK", true);
+
+  // Enable audio volume indicator on the RTC client
+  rtcClient.enableAudioVolumeIndicator();
+  
+  // Set up interval for local volume monitoring
   volumeDetectionInterval = setInterval(() => {
-    // Listen for volume indicator event
-    rtcClient.on("volume-indicator", (volumes) => {
-      volumes.forEach((volume) => {
-        // Check if this is the local user (has MicrophoneAudioTrack type)
-        if (volume.level > VOLUME_SPEAKING_THRESHOLD && localAudioTrack && 
-            volume.uid === userIdInput.value) {
-          
-          // Handle talking while muted for local user
-          if (localAudioTrack.muted) {
-            if (!isTalkingWhileMuted) {
-              isTalkingWhileMuted = true;
-              const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
-              if (talkingWhileMutedNotification) {
-                talkingWhileMutedNotification.style.display = "block";
-              }
-              
-              setTimeout(() => {
-                const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
-                if (talkingWhileMutedNotification) {
-                  talkingWhileMutedNotification.style.display = "none";
-                }
-                isTalkingWhileMuted = false;
-              }, 3000); // Show for 3 seconds
-            }
-          }
-          
-          // Add speaking class to local video when volume is high
-          if (volume.level > VOLUME_HIGH_THRESHOLD) {
-            const localVideo = document.getElementById("localVideo");
-            if (localVideo) {
-              localVideo.classList.add("speaking");
-              
-              // Remove the class after a short delay to create a natural effect
-              setTimeout(() => {
-                localVideo.classList.remove("speaking");
-              }, 300);
-            }
-          }
-        } else if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
-          // Handle remote user speaking
-          const remoteVideoElement = findRemoteVideoElement(volume.uid);
-          if (remoteVideoElement) {
+    if (localAudioTrack) {
+      // Get volume level directly from the track
+      const volumeLevel = localAudioTrack.getVolumeLevel() * 100; // Convert to 0-100 scale
+      console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
+      
+      // Add speaking border if volume is above threshold
+      const localVideoElement = document.getElementById("localVideo");
+      if (volumeLevel > VOLUME_SPEAKING_THRESHOLD) {
+        console.log(`Local user is speaking with level ${volumeLevel}`);
+        localVideoElement.classList.add("speaking");
+      } else {
+        localVideoElement.classList.remove("speaking");
+      }
+      
+      // Show talking while muted notification
+      const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
+      if (talkingWhileMutedNotification && localAudioTrack.muted && volumeLevel > VOLUME_HIGH_THRESHOLD) {
+        console.log("TALKING WHILE MUTED DETECTED!");
+        if (!isTalkingWhileMuted) {
+          console.log("Showing talking while muted notification");
+          talkingWhileMutedNotification.style.display = "block";
+          isTalkingWhileMuted = true;
+          setTimeout(() => {
+            console.log("Hiding talking while muted notification after timeout");
+            talkingWhileMutedNotification.style.display = "none";
+            isTalkingWhileMuted = false;
+          }, 3000);
+        }
+      }
+      
+      // Check if talking while muted notification exists, create if it doesn't
+      if (!document.getElementById("talking-while-muted")) {
+        const localVideoElem = document.getElementById("localVideo");
+        if (localVideoElem) {
+          console.log("Creating missing talking-while-muted notification");
+          const newNotification = document.createElement("div");
+          newNotification.id = "talking-while-muted";
+          newNotification.textContent = "You're talking but your mic is muted!";
+          newNotification.style.display = "none";
+          localVideoElem.appendChild(newNotification);
+        }
+      }
+    }
+  }, 200);
+  
+  // Set up the volume-indicator event for remote users
+  rtcClient.on("volume-indicator", volumes => {
+    console.log("Volume indicator event:", volumes.map(v => `${v.uid}: ${v.level}`).join(', '));
+    
+    volumes.forEach(volume => {
+      // Handle remote users only
+      if (volume.uid.toString() !== userIdInput.value) {
+        const remoteVideoElement = findRemoteVideoElement(volume.uid);
+        if (remoteVideoElement) {
+          // Add speaking border if volume is above threshold
+          if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
+            console.log(`Remote user ${volume.uid} is speaking with level ${volume.level}`);
             remoteVideoElement.classList.add("speaking");
-            
-            // Remove the class after a short delay
-            setTimeout(() => {
-              remoteVideoElement.classList.remove("speaking");
-            }, 300);
+          } else {
+            remoteVideoElement.classList.remove("speaking");
           }
         }
-      });
+      }
     });
-  }, 200);
+  });
 }
 
 // Helper function to find a remote video element by user ID
 function findRemoteVideoElement(uid) {
-  const videoElement = document.querySelector(`.video-player[data-user-id="${uid}"]`);
+  // The correct way is to get from the remoteVideos Map directly
+  const videoElement = remoteVideos.get(uid.toString());
+  
+  // Log for debugging
+  console.log(`Finding remote video element for ${uid}, found: ${videoElement ? 'yes' : 'no'}`);
+  
+  // If not found, try to search by attribute as fallback
+  if (!videoElement) {
+    console.log(`Fallback: Searching for video element with data-user-id=${uid}`);
+    return document.querySelector(`.video-player[data-user-id="${uid}"]`);
+  }
+  
   return videoElement;
 }
 
@@ -1966,15 +1994,6 @@ function stopRemoteNetworkQualityPolling() {
     console.log("Stopping remote network quality polling");
     clearInterval(networkQualityInterval);
     networkQualityInterval = null;
-  }
-}
-
-// Function to stop volume detection
-function stopVolumeDetection() {
-  if (volumeDetectionInterval) {
-    console.log("Stopping volume detection");
-    clearInterval(volumeDetectionInterval);
-    volumeDetectionInterval = null;
   }
 }
 
