@@ -79,6 +79,14 @@ const peerTab = document.querySelector('[data-tab="peer"]');
 const additionalVideos = document.getElementById("additionalVideos");
 let remoteVideos = new Map(); // Map to track remote video elements
 
+// Add PiP-related variables
+const pipBtn = document.getElementById("pipBtn");
+const pipContainer = document.getElementById("pipContainer");
+let pipTriggeredByButton = false;
+
+// Add tracking variable for PiP source
+let pipSource = null;
+
 // Add a map to track active peer chats
 const activePeerChats = new Map();
 
@@ -1307,13 +1315,16 @@ joinChannelBtn.addEventListener("click", async () => {
     if (videoStatsEnabled) {
       startVideoStatsUpdates();
     }
+    
+    // Initialize PiP
+    initPip();
   } catch (err) {
     console.error("Failed to join RTC channel:", err);
     alert("Failed to join RTC channel. Please check your connection and try again.");
   }
 });
 
-// Update the leave channel handler
+// Update the leaveChannel function to clean up PiP
 leaveChannelBtn.addEventListener("click", async () => {
   if (!rtcClient) return;
   try {
@@ -1387,6 +1398,13 @@ leaveChannelBtn.addEventListener("click", async () => {
     addChatMessage(channelChatBox, `[${timestamp}] [System] You left the RTC channel`);
     
     console.log("Leave channel complete");
+    
+    // Clean up PiP
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+    }
+    pipContainer.style.display = 'none';
+    pipContainer.innerHTML = '';
   } catch (err) {
     console.error("Failed to leave RTC channel:", err);
   }
@@ -2322,3 +2340,89 @@ function getNetworkQualityClass(quality) {
     default: return "quality-0";
   }
 }
+
+// Initialize PiP functionality
+function initPip() {
+  // Check if browser supports PiP
+  if (document.pictureInPictureEnabled) {
+    pipBtn.disabled = false;
+    pipBtn.addEventListener('click', () => {
+      pipTriggeredByButton = true;
+      togglePip();
+    });
+    pipContainer.addEventListener('click', exitPip);
+
+    // Add visibility change listener for automatic PiP
+    document.addEventListener('visibilitychange', async () => {
+      if (document.hidden) {
+        // App is being minimized/swiped away
+        const remoteVideo = document.querySelector('#remoteVideo video');
+        if (remoteVideo && remoteVideo.srcObject) {
+          try {
+            await remoteVideo.requestPictureInPicture();
+            pipTriggeredByButton = false; // Mark as auto-triggered
+          } catch (error) {
+            console.error('Error entering PiP mode with remote video:', error);
+          }
+        }
+      } else if (!pipTriggeredByButton) {
+        // App is visible again and PiP was auto-triggered
+        if (document.pictureInPictureElement) {
+          await document.exitPictureInPicture();
+        }
+      }
+    });
+  } else {
+    pipBtn.style.display = 'none';
+  }
+}
+
+async function togglePip() {
+  if (!localVideoTrack) return;
+
+  if (document.pictureInPictureElement) {
+    await document.exitPictureInPicture();
+    pipTriggeredByButton = false;
+  } else {
+    // Try to find a remote video first for mobile PiP
+    const remoteVideo = document.querySelector('#remoteVideo video');
+    if (remoteVideo && remoteVideo.srcObject) {
+      try {
+        await remoteVideo.requestPictureInPicture();
+        return;
+      } catch (error) {
+        console.error('Error entering PiP mode with remote video:', error);
+      }
+    }
+
+    // Fall back to local video if remote video PiP fails
+    const pipVideo = document.createElement('video');
+    pipVideo.srcObject = localVideoTrack.getMediaStream();
+    pipVideo.autoplay = true;
+    pipVideo.muted = true;
+    
+    pipContainer.innerHTML = '';
+    pipContainer.appendChild(pipVideo);
+    pipContainer.style.display = 'block';
+    
+    try {
+      await pipVideo.requestPictureInPicture();
+    } catch (error) {
+      console.error('Error entering PiP mode:', error);
+      pipContainer.style.display = 'none';
+    }
+  }
+}
+
+function exitPip() {
+  if (document.pictureInPictureElement) {
+    document.exitPictureInPicture();
+    pipTriggeredByButton = false;
+  }
+  pipContainer.style.display = 'none';
+}
+
+// Add PiP event listeners
+document.addEventListener('leavepictureinpicture', () => {
+  pipContainer.style.display = 'none';
+});
