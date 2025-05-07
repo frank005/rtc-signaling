@@ -80,11 +80,15 @@
         <section class="video-section">
           <div class="video-container">
             <div class="video-controls">
-              <button id="joinChannelBtn" disabled>Join Channel</button>
-              <button id="leaveChannelBtn" disabled>Leave Channel</button>
-              <button id="toggleAudioBtn" disabled>Mute Audio</button>
-              <button id="toggleVideoBtn" disabled>Mute Video</button>
-              <button id="pipBtn" disabled>Picture in Picture</button>
+              <div class="rtc-controls">
+                <button id="joinChannelBtn" disabled>Join Channel</button>
+                <button id="leaveChannelBtn" disabled>Leave Channel</button>
+                <button id="toggleAudioBtn" disabled>Mute Audio</button>
+                <button id="toggleVideoBtn" disabled>Mute Video</button>
+                <button id="screenShareBtn" disabled>Share Screen</button>
+                <button id="stopScreenShareBtn" style="display: none;" disabled>Stop Sharing</button>
+                <button id="pipBtn" disabled>PiP</button>
+              </div>
             </div>
             <div class="video-box">
               <div id="localVideo" class="video-player"></div>

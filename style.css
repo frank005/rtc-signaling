@@ -115,6 +115,33 @@ h1 {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.video-controls button {
+  height: 36px;
+  min-width: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #414868;
+  color: #ffffff;
+  border: 1px solid #565f89;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.video-controls button:hover {
+  background-color: #565f89;
+}
+
+.video-controls button:disabled {
+  background-color: #1a1b26;
+  color: #6c7086;
+  border-color: #414868;
 }
 
 /* Video Labels */
@@ -448,11 +475,7 @@ button:disabled {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid #414868;
-}
-
-.participant-item.selected {
-  background-color: #2c3047;
-  border-color: #89b4fa;
+  margin-bottom: 8px;
 }
 
 .participant-item:hover {
@@ -461,11 +484,51 @@ button:disabled {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.participant-item.selected {
+  background-color: #2c3047;
+  border-color: #89b4fa;
+}
+
 .participant-item .presence-indicator {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background-color: #9ece6a;
+}
+
+/* For the video tile overlay */
+.video-player .screen-share-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(137, 180, 250, 0.9);
+  color: #1e1e2e;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* For the participants list */
+.participant-item .screen-share-indicator {
+  position: static;
+  background: none;
+  color: #89b4fa;
+  font-size: 16px;
+  font-weight: normal;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+}
+.participant-item .screen-share-indicator i {
+  color: #89b4fa;
+  font-size: 16px;
+  animation: pulse 2s infinite;
 }
 
 .participant-item span:last-child {
@@ -968,4 +1031,63 @@ input[type="text"] {
 /* Remove the custom PiP button styles */
 #pipBtn {
   /* Remove custom styles to inherit from the common button styles */
+}
+
+/* Screen Share Styles */
+.screen-share {
+  border: 2px solid #89b4fa;
+}
+
+.screen-share-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(137, 180, 250, 0.9);
+  color: #1e1e2e;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.screen-share-icon {
+  color: #89b4fa;
+  margin-left: 4px;
+  font-size: 14px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.participants-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.participants-header h3 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+/* RTC Controls */
+.rtc-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
 }

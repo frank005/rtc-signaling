@@ -4,6 +4,10 @@
 let rtmClient = null;
 let rtmChannel = null;
 
+// Add metadata constants
+const METADATA_KEY = "screenShare";
+const METADATA_NAMESPACE = "rtc";
+
 // RTC Client
 let rtcClient = null;
 let localAudioTrack = null;
@@ -280,6 +284,9 @@ function createVideoElement(userId) {
   videoElement.appendChild(cameraMuteIndicator);
   videoElement.appendChild(remoteStatsOverlay);
   
+  // Force UI refresh
+  updateParticipantsList();
+  
   return videoElement;
 }
 
@@ -421,16 +428,103 @@ loginBtn.addEventListener("click", async () => {
 
     rtmClient.addEventListener("message", handleRtmChannelMessage);
     rtmClient.addEventListener("presence", handleRtmPresenceEvent);
+    
+    // Add storage event listener for metadata updates
+    rtmClient.addEventListener("storage", async (evt) => {
+      console.log("[METADATA EVENT] Storage event received:", JSON.stringify(evt, null, 2));
+      
+      // Check if this is a user metadata update
+      if (evt.eventType === "UserMetadataUpdate" || evt.eventType === "UPDATE") {
+        const userId = evt.publisher || evt.userId;
+        const userIdString = String(userId);
+        console.log("[METADATA EVENT] Processing update for user:", userIdString);
+        
+        // Fix: Access the correct nested structure data.metadata.screenShare.value
+        const screenShareValue = evt.data?.metadata?.screenShare?.value;
+        console.log("[METADATA EVENT] Screen share value:", screenShareValue, "for user:", userIdString);
+        
+        const isSharing = screenShareValue === "true";
+        console.log("[METADATA EVENT] Is sharing:", isSharing, "for user:", userIdString);
+        
+        // Update screenShareMap
+        if (isSharing) {
+          console.log("[METADATA EVENT] Adding to screenShareMap:", userIdString);
+          screenShareMap.set(userIdString, `${userIdString}-screen`);
+        } else {
+          console.log("[METADATA EVENT] Removing from screenShareMap:", userIdString);
+          screenShareMap.delete(userIdString);
+          
+          // Also remove the screen share video element if it exists
+          const screenShareVideoId = `${userIdString}-screen`;
+          const videoElement = remoteVideos.get(screenShareVideoId);
+          if (videoElement) {
+            console.log("[METADATA EVENT] Removing screen share video element");
+            videoElement.remove();
+            remoteVideos.delete(screenShareVideoId);
+            updateVideoGrid();
+          }
+        }
+        
+        console.log("[METADATA EVENT] ScreenShareMap after update:", Array.from(screenShareMap.entries()));
+        console.log("[METADATA EVENT] Current participants:", Array.from(participants));
+        
+        // Force add to participants if not already there
+        if (!participants.has(userIdString) && userIdString !== userIdInput.value) {
+          console.log("[METADATA EVENT] Adding missing participant:", userIdString);
+          participants.add(userIdString);
+        }
+        
+        // Always update UI for remote users
+        if (userIdString !== userIdInput.value) {
+          console.log("[METADATA EVENT] Scheduling UI update for remote user:", userIdString);
+          // Use multiple delayed updates to ensure UI consistency
+          setTimeout(() => {
+            console.log("[METADATA EVENT] Executing first UI update for user:", userIdString);
+            updateParticipantsList();
+            // Schedule a second update to ensure changes are reflected
+            setTimeout(() => {
+              console.log("[METADATA EVENT] Executing second UI update for user:", userIdString);
+              updateParticipantsList();
+            }, 500);
+          }, 100);
+        }
+        
+        // Verify the update was applied
+        try {
+          const verifyMetadata = await rtmClient.storage.getUserMetadata({ userId: userIdString });
+          console.log("[METADATA EVENT] Verified metadata after update:", JSON.stringify(verifyMetadata, null, 2));
+        } catch (error) {
+          console.error("[METADATA EVENT] Failed to verify metadata:", error);
+        }
+      }
+    });
 
     // Login to RTM
     await rtmClient.login({ token });
     localInbox = "inbox_" + userId;
 
+    // Subscribe to our own metadata first
+    try {
+      const userIdString = String(userId);
+      console.log("[LOGIN] Subscribing to own metadata");
+      await rtmClient.storage.subscribeUserMetadata(userIdString);
+      
+      console.log("[LOGIN] Cleaning up existing metadata");
+      await cleanupDuplicateMetadata(userIdString);
+      console.log("[LOGIN] Setting initial metadata state");
+      await rtmClient.storage.setUserMetadata([{
+        key: METADATA_KEY,
+        value: "false"
+      }]);
+    } catch (error) {
+      console.error("[LOGIN] Failed to setup metadata:", error);
+    }
+
     // Subscribe to personal inbox
     await rtmClient.subscribe(localInbox, {
       withMessage: true,
       withPresence: false,
-      withMetadata: false,
+      withMetadata: true,  // Enable metadata for inbox
       withLock: false,
     });
 
@@ -521,7 +615,7 @@ subscribeBtn.addEventListener("click", async () => {
     await rtmClient.subscribe(channelName, {
       withMessage: true,
       withPresence: true,
-      withMetadata: false,
+      withMetadata: true,
       withLock: false,
     });
     channelStatus.textContent = `Subscribed to "${channelName}"`;
@@ -534,7 +628,7 @@ subscribeBtn.addEventListener("click", async () => {
     subscribeBtn.disabled = true;
     unsubscribeBtn.disabled = false;
     sendChannelMsgBtn.disabled = false;
-    joinChannelBtn.disabled = false; // Enable RTC join button after signaling subscription
+    joinChannelBtn.disabled = false;
 
   } catch (err) {
     console.error("Channel subscription failed:", err);
@@ -713,12 +807,10 @@ function handleRtmChannelMessage(evt) {
 }
 
 /** Handle presence events (join/leave/timeouts) from RTM 2.x. */
-function handleRtmPresenceEvent(evt) {
+async function handleRtmPresenceEvent(evt) {
   const { eventType, publisher, channelName, timestamp, snapshot } = evt;
-  
-  // Format timestamp
   const timeStr = new Date(parseInt(timestamp)).toLocaleTimeString();
-
+  
   // Handle USER channel presence events
   if (channelName && activePeerChats.has(channelName)) {
     if (eventType === "JOIN" || eventType === "REMOTE_JOIN") {
@@ -734,36 +826,86 @@ function handleRtmPresenceEvent(evt) {
   if (channelName === subscribedChannel) {
     // Handle snapshot event
     if (eventType === "SNAPSHOT" && snapshot) {
-      // Clear existing participants
       participants.clear();
       
-      // Add all users from snapshot except current user
-      snapshot.forEach(user => {
+      for (const user of snapshot) {
         if (user.userId !== userIdInput.value) {
-          participants.add(user.userId);
-          addChatMessage(channelChatBox, `[${timeStr}] [System] ${user.userId} is online`);
+          const userIdString = String(user.userId);
+          participants.add(userIdString);
+          addChatMessage(channelChatBox, `[${timeStr}] [System] ${userIdString} is online`);
+          
+          // Subscribe to user metadata
+          try {
+            console.log("[PRESENCE] Subscribing to metadata for user:", userIdString);
+            await rtmClient.storage.subscribeUserMetadata(userIdString);
+            
+            // Get initial metadata state
+            const result = await rtmClient.storage.getUserMetadata({ userId: userIdString });
+            console.log("[PRESENCE] Got metadata for user:", userIdString, "result:", result);
+            
+            // Check if user is screen sharing
+            const screenShareValue = result?.metadata?.screenShare?.value;
+            if (screenShareValue === "true") {
+              console.log("[PRESENCE] User is screen sharing, updating map");
+              screenShareMap.set(userIdString, `${userIdString}-screen`);
+              updateParticipantsList();
+            }
+          } catch (error) {
+            console.error(`[PRESENCE] Failed to handle metadata for user ${userIdString}:`, error);
+          }
         }
-      });
+      }
       
       updateParticipantsList();
       return;
     }
 
-    // Handle join events (both initial and remote)
+    // Handle join events
     if (eventType === "JOIN" || eventType === "REMOTE_JOIN") {
-      // Skip if it's our own join event
       if (publisher !== userIdInput.value) {
-        participants.add(publisher);
-        addChatMessage(channelChatBox, `[${timeStr}] [System] ${publisher} joined the channel`);
-        updateParticipantsList();
+        const publisherString = String(publisher);
+        participants.add(publisherString);
+        addChatMessage(channelChatBox, `[${timeStr}] [System] ${publisherString} joined the channel`);
+        
+        // Subscribe to user metadata immediately when they join
+        try {
+          console.log("[PRESENCE] Subscribing to metadata for new user:", publisherString);
+          await rtmClient.storage.subscribeUserMetadata(publisherString);
+          
+          // Get initial metadata state
+          const result = await rtmClient.storage.getUserMetadata({ userId: publisherString });
+          console.log("[PRESENCE] Got initial metadata for new user:", publisherString, "result:", result);
+          
+          // Check if user is screen sharing
+          const screenShareValue = result?.metadata?.screenShare?.value;
+          if (screenShareValue === "true") {
+            console.log("[PRESENCE] New user is screen sharing, updating map");
+            screenShareMap.set(publisherString, `${publisherString}-screen`);
+          }
+          
+          // Force UI update
+          updateParticipantsList();
+        } catch (error) {
+          console.error(`[PRESENCE] Failed to handle metadata for new user ${publisherString}:`, error);
+        }
       }
     } 
-    // Handle leave events (both types) and timeouts
+    // Handle leave events
     else if (eventType === "LEAVE" || eventType === "REMOTE_LEAVE" || eventType === "REMOTE_TIMEOUT") {
-      // Skip if it's our own leave event
       if (publisher !== userIdInput.value) {
-        participants.delete(publisher);
-        addChatMessage(channelChatBox, `[${timeStr}] [System] ${publisher} left the channel`);
+        const publisherString = String(publisher);
+        participants.delete(publisherString);
+        screenShareMap.delete(publisherString);
+        
+        // Unsubscribe from user metadata when they leave
+        try {
+          console.log("[PRESENCE] Unsubscribing from metadata for user:", publisherString);
+          await rtmClient.storage.unsubscribeUserMetadata(publisherString);
+        } catch (error) {
+          console.error(`[PRESENCE] Failed to unsubscribe from metadata for user ${publisherString}:`, error);
+        }
+        
+        addChatMessage(channelChatBox, `[${timeStr}] [System] ${publisherString} left the channel`);
         updateParticipantsList();
       }
     }
@@ -838,6 +980,7 @@ async function initializeRTC(appId, token, userId) {
         videoElement.remove();
         remoteVideos.delete(user.uid);
         updateVideoGrid();
+        updateParticipantsList(); // Force UI refresh
       }
     });
 
@@ -1077,38 +1220,70 @@ function updatePresenceIndicator(isOnline) {
 }
 
 function updateParticipantsList() {
+  console.log("[PARTICIPANTS] Starting update");
+  console.log("[PARTICIPANTS] Current screenShareMap:", Array.from(screenShareMap.entries()));
+  console.log("[PARTICIPANTS] Current participants:", Array.from(participants));
+  
   const participantsList = document.getElementById("participantsList");
+  if (!participantsList) {
+    console.error("[PARTICIPANTS] Could not find participants list element");
+    return;
+  }
+  
   participantsList.innerHTML = "";
   
+  // Add participant count header
+  const header = document.createElement("div");
+  header.className = "participants-header";
+  const count = participants.size + 1;
+  header.innerHTML = `<h3>Participants (${count})</h3>`;
+  participantsList.appendChild(header);
+  
+  // Add self to the list first
+  const selfItem = document.createElement("div");
+  selfItem.className = "participant-item";
+  const selfColor = getUserColor(userIdInput.value);
+  const isSharing = screenShareMap.has(userIdInput.value);
+  console.log("[PARTICIPANTS] Self user:", userIdInput.value, "isSharing:", isSharing);
+  
+  const selfHtml = `
+    <span class="presence-indicator online"></span>
+    <span style="color: ${selfColor}">${userIdInput.value} (You)</span>
+    ${isSharing ? '<div class="screen-share-indicator"><i class="fas fa-desktop"></i></div>' : '<!-- not sharing -->'}
+  `;
+  console.log("[PARTICIPANTS] Self HTML:", selfHtml);
+  selfItem.innerHTML = selfHtml;
+  participantsList.appendChild(selfItem);
+  
+  // Add other participants
   participants.forEach((participant) => {
+    const isSharing = screenShareMap.has(participant);
+    console.log("[PARTICIPANTS] Processing:", participant, "isSharing:", isSharing);
+    
     const participantElement = document.createElement("div");
     participantElement.className = "participant-item";
     if (selectedPeer === participant) {
       participantElement.classList.add("selected");
     }
     
-    // Get a color for this participant
     const participantColor = getUserColor(participant);
-    
-    participantElement.innerHTML = `
+    const participantHtml = `
       <span class="presence-indicator online"></span>
       <span style="color: ${participantColor}">${participant}</span>
+      ${isSharing ? '<div class="screen-share-indicator"><i class="fas fa-desktop"></i></div>' : '<!-- not sharing -->'}
     `;
+    console.log("[PARTICIPANTS] Participant HTML:", participantHtml);
+    participantElement.innerHTML = participantHtml;
     
     // Add click handler to select this peer
     participantElement.addEventListener("click", () => {
       selectedPeer = participant;
-      
-      // Update the UI to reflect the selection
       document.querySelectorAll(".participant-item").forEach(item => {
         item.classList.remove("selected");
       });
       participantElement.classList.add("selected");
-      
-      // Switch to peer chat tab
       document.querySelector('[data-tab="peer"]').click();
       
-      // Update the peer chat title with the selected peer
       const peerChatHeader = document.createElement("div");
       peerChatHeader.className = "peer-chat-header";
       peerChatHeader.style.color = participantColor;
@@ -1118,24 +1293,13 @@ function updateParticipantsList() {
       if (existingHeader) {
         existingHeader.remove();
       }
-      
       document.getElementById("peerChat").insertBefore(peerChatHeader, document.getElementById("peerChatBox"));
     });
     
     participantsList.appendChild(participantElement);
   });
   
-  // Update remote video labels if needed
-  remoteVideos.forEach((video, userId) => {
-    const label = video.querySelector(".video-label");
-    if (label && participants.has(userId)) {
-      label.textContent = userId;
-      // Apply the same color to video labels
-      if (userId !== userIdInput.value) {
-        label.style.color = getUserColor(userId);
-      }
-    }
-  });
+  console.log("[PARTICIPANTS] Update complete");
 }
 
 // Add device selection functions
@@ -1318,6 +1482,10 @@ joinChannelBtn.addEventListener("click", async () => {
     
     // Initialize PiP
     initPip();
+    
+    // Enable screen share button
+    screenShareBtn.disabled = false;
+    
   } catch (err) {
     console.error("Failed to join RTC channel:", err);
     alert("Failed to join RTC channel. Please check your connection and try again.");
@@ -1405,6 +1573,27 @@ leaveChannelBtn.addEventListener("click", async () => {
     }
     pipContainer.style.display = 'none';
     pipContainer.innerHTML = '';
+    
+    // Stop screen sharing if active
+    if (screenShareTrack) {
+      screenShareTrack.stop();
+      screenShareTrack.close();
+      screenShareTrack = null;
+    }
+    
+    if (screenShareClient) {
+      await screenShareClient.leave();
+      screenShareClient = null;
+    }
+    
+    screenShareMap.clear();
+    
+    // Update UI
+    screenShareBtn.style.display = "inline-block";
+    screenShareBtn.disabled = true;
+    stopScreenShareBtn.style.display = "none";
+    stopScreenShareBtn.disabled = true;
+    
   } catch (err) {
     console.error("Failed to leave RTC channel:", err);
   }
@@ -1655,7 +1844,7 @@ function stopVolumeDetection() {
 
 // Start volume detection and update UI - using direct polling approach
 function startVolumeDetection() {
-  console.log("Starting volume detection with polling approach");
+  // console.log("Starting volume detection with polling approach");
   
   // Clear any existing interval
   if (volumeDetectionInterval) {
@@ -1674,12 +1863,12 @@ function startVolumeDetection() {
     if (localAudioTrack) {
       // Get volume level directly from the track
       const volumeLevel = localAudioTrack.getVolumeLevel() * 100; // Convert to 0-100 scale
-      console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
+      // console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
       
       // Add speaking border if volume is above threshold AND user is not muted
       const localVideoElement = document.getElementById("localVideo");
       if (volumeLevel > VOLUME_SPEAKING_THRESHOLD) {
-        console.log(`Local user is speaking with level ${volumeLevel}`);
+        // console.log(`Local user is speaking with level ${volumeLevel}`);
         
         // Only add speaking class if user is NOT muted
         if (!localAudioTrack.muted) {
@@ -1695,13 +1884,13 @@ function startVolumeDetection() {
       // Show talking while muted notification
       const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
       if (talkingWhileMutedNotification && localAudioTrack.muted && volumeLevel > VOLUME_HIGH_THRESHOLD) {
-        console.log("TALKING WHILE MUTED DETECTED!");
+        // console.log("TALKING WHILE MUTED DETECTED!");
         if (!isTalkingWhileMuted) {
-          console.log("Showing talking while muted notification");
+          // console.log("Showing talking while muted notification");
           talkingWhileMutedNotification.style.display = "block";
           isTalkingWhileMuted = true;
           setTimeout(() => {
-            console.log("Hiding talking while muted notification after timeout");
+            // console.log("Hiding talking while muted notification after timeout");
             talkingWhileMutedNotification.style.display = "none";
             isTalkingWhileMuted = false;
           }, 3000);
@@ -1712,7 +1901,7 @@ function startVolumeDetection() {
       if (!document.getElementById("talking-while-muted")) {
         const localVideoElem = document.getElementById("localVideo");
         if (localVideoElem) {
-          console.log("Creating missing talking-while-muted notification");
+          // console.log("Creating missing talking-while-muted notification");
           const newNotification = document.createElement("div");
           newNotification.id = "talking-while-muted";
           newNotification.textContent = "You're talking but your mic is muted!";
@@ -1725,8 +1914,7 @@ function startVolumeDetection() {
   
   // Set up the volume-indicator event for remote users
   rtcClient.on("volume-indicator", volumes => {
-    console.log("Volume indicator event:", volumes.map(v => `${v.uid}: ${v.level}`).join(', '));
-    
+    // console.log("Volume indicator event:", volumes.map(v => `${v.uid}: ${v.level}`).join(', '));
     volumes.forEach(volume => {
       // Handle remote users only
       if (volume.uid.toString() !== userIdInput.value) {
@@ -1734,7 +1922,7 @@ function startVolumeDetection() {
         if (remoteVideoElement) {
           // Add speaking border if volume is above threshold
           if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
-            console.log(`Remote user ${volume.uid} is speaking with level ${volume.level}`);
+            // console.log(`Remote user ${volume.uid} is speaking with level ${volume.level}`);
             remoteVideoElement.classList.add("speaking");
           } else {
             remoteVideoElement.classList.remove("speaking");
@@ -2221,7 +2409,6 @@ async function updateStatsDisplays() {
           html += '<div class="stats-column">';
           html += '<span class="stats-header network">Network</span> ';
           html += `<div>Quality: U- ${getQualityText(remoteNetworkQuality.uplink)} D- ${getQualityText(remoteNetworkQuality.downlink)}</div>`;
-          //Removed this: quality-${remoteNetworkQuality.uplink} from the quality classes (local and remote)
           if (remoteVideoStats_uid) {
             // Direct access using correct property names
             let delay = remoteVideoStats_uid.end2EndDelay || 0;
@@ -2426,3 +2613,321 @@ function exitPip() {
 document.addEventListener('leavepictureinpicture', () => {
   pipContainer.style.display = 'none';
 });
+
+// Add new variables for screen sharing
+let screenShareClient = null;
+let screenShareTrack = null;
+let screenShareUserId = null;
+let screenShareMap = new Map(); // Map to track who is screen sharing
+const screenShareBtn = document.getElementById("screenShareBtn");
+const stopScreenShareBtn = document.getElementById("stopScreenShareBtn");
+
+// Screen sharing event handlers
+screenShareBtn.addEventListener("click", async () => {
+  try {
+    // Create screen share track
+    screenShareTrack = await AgoraRTC.createScreenVideoTrack();
+    
+    // Create screen share client
+    const screenShareUserId = `${userIdInput.value}-screen`;
+    screenShareClient = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+    
+    // Join channel with screen share client
+    await screenShareClient.join(
+      appIdInput.value,
+      channelNameInput.value,
+      tokenInput.value || null,
+      screenShareUserId
+    );
+    
+    // Publish screen share track
+    await screenShareClient.publish([screenShareTrack]);
+    
+    // Add to screen share map first
+    console.log("[SCREEN SHARE] Adding to screenShareMap:", userIdInput.value);
+    screenShareMap.set(userIdInput.value, screenShareUserId);
+    
+    // Update metadata to indicate screen sharing
+    try {
+      console.log("[SCREEN SHARE] Setting metadata to true");
+      await rtmClient.storage.setUserMetadata([{
+        key: METADATA_KEY,
+        value: "true"
+      }]);
+      console.log("[SCREEN SHARE] Metadata set successfully");
+    } catch (error) {
+      console.error("[SCREEN SHARE] Failed to update metadata:", error);
+    }
+    
+    // Update UI
+    screenShareBtn.style.display = "none";
+    stopScreenShareBtn.style.display = "inline-block";
+    stopScreenShareBtn.disabled = false;
+    
+    // Force UI update
+    console.log("[SCREEN SHARE] Forcing UI update");
+    updateParticipantsList();
+    
+    // Add system message
+    const timestamp = new Date().toLocaleTimeString();
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You started screen sharing`);
+    
+    // Broadcast to all users
+    if (rtmClient && subscribedChannel) {
+      await rtmClient.publish(subscribedChannel, `[System] ${userIdInput.value} started screen sharing`);
+    }
+  } catch (error) {
+    console.error("[SCREEN SHARE] Failed to start:", error);
+    alert("Failed to start screen sharing: " + error.message);
+  }
+});
+
+stopScreenShareBtn.addEventListener("click", async () => {
+  try {
+    // Stop and close screen share track
+    if (screenShareTrack) {
+      screenShareTrack.stop();
+      screenShareTrack.close();
+      screenShareTrack = null;
+    }
+    
+    // Leave channel with screen share client
+    if (screenShareClient) {
+      await screenShareClient.leave();
+      screenShareClient = null;
+    }
+    
+    // Remove from screen share map first
+    console.log("[SCREEN SHARE] Removing from screenShareMap:", userIdInput.value);
+    screenShareMap.delete(userIdInput.value);
+    
+    // Update metadata to indicate screen sharing stopped
+    try {
+      console.log("[SCREEN SHARE] Setting metadata to false");
+      await rtmClient.storage.setUserMetadata([{
+        key: METADATA_KEY,
+        value: "false"
+      }]);
+      console.log("[SCREEN SHARE] Metadata set successfully");
+    } catch (error) {
+      console.error("[SCREEN SHARE] Failed to update metadata:", error);
+    }
+    
+    // Update UI
+    screenShareBtn.style.display = "inline-block";
+    stopScreenShareBtn.style.display = "none";
+    stopScreenShareBtn.disabled = true;
+    
+    // Force UI update
+    console.log("[SCREEN SHARE] Forcing UI update");
+    updateParticipantsList();
+    
+    // Add system message
+    const timestamp = new Date().toLocaleTimeString();
+    addChatMessage(channelChatBox, `[${timestamp}] [System] You stopped screen sharing`);
+    
+    // Broadcast to all users
+    if (rtmClient && subscribedChannel) {
+      await rtmClient.publish(subscribedChannel, `[System] ${userIdInput.value} stopped screen sharing`);
+    }
+  } catch (error) {
+    console.error("[SCREEN SHARE] Failed to stop:", error);
+  }
+});
+
+// Update the joinChannelBtn click handler to enable screen share button
+joinChannelBtn.addEventListener("click", async () => {
+  // ... existing code ...
+  
+  try {
+    // ... existing code ...
+    
+    // Enable screen share button
+    screenShareBtn.disabled = false;
+    
+    // ... rest of existing code ...
+  } catch (err) {
+    console.error("Failed to join RTC channel:", err);
+    alert("Failed to join RTC channel. Please check your connection and try again.");
+  }
+});
+
+// Update the leaveChannelBtn click handler to handle screen sharing cleanup
+leaveChannelBtn.addEventListener("click", async () => {
+  // ... existing code ...
+  
+  try {
+    // ... existing code ...
+    
+    // Stop screen sharing if active
+    if (screenShareTrack) {
+      screenShareTrack.stop();
+      screenShareTrack.close();
+      screenShareTrack = null;
+    }
+    
+    if (screenShareClient) {
+      await screenShareClient.leave();
+      screenShareClient = null;
+    }
+    
+    screenShareMap.clear();
+    
+    // Update UI
+    screenShareBtn.style.display = "inline-block";
+    screenShareBtn.disabled = true;
+    stopScreenShareBtn.style.display = "none";
+    stopScreenShareBtn.disabled = true;
+    
+    // ... rest of existing code ...
+  } catch (err) {
+    console.error("Failed to leave RTC channel:", err);
+  }
+});
+
+// Update the user-published event handler to handle screen sharing
+rtcClient.on("user-published", async (user, mediaType) => {
+  await rtcClient.subscribe(user, mediaType);
+  console.log(`Subscribe success to ${user.uid}'s ${mediaType}`);
+
+  // Check if this is a screen share user
+  if (user.uid.toString().endsWith("-screen")) {
+    // Find the original user ID
+    const originalUserId = user.uid.toString().replace(/-screen$/, "");
+    console.log("[SCREEN SHARE] Detected screen share from user:", originalUserId);
+    
+    // Subscribe to metadata for both the original user and screen share user
+    try {
+      console.log("[SCREEN SHARE] Subscribing to metadata for original user:", originalUserId);
+      await rtmClient.storage.subscribeUserMetadata(originalUserId);
+      
+      // Get initial metadata state
+      const result = await rtmClient.storage.getUserMetadata({ userId: originalUserId });
+      console.log("[SCREEN SHARE] Got initial metadata for user:", originalUserId, "result:", result);
+      
+      // Update screen share map
+      screenShareMap.set(originalUserId, user.uid.toString());
+      console.log("[SCREEN SHARE] Updated screenShareMap:", Array.from(screenShareMap.entries()));
+      
+      // Ensure the original user is in the participants set
+      if (!participants.has(originalUserId)) {
+        participants.add(originalUserId);
+      }
+      
+      // Force UI update
+      updateParticipantsList();
+    } catch (error) {
+      console.error("[SCREEN SHARE] Failed to handle metadata:", error);
+    }
+    
+    // Create video element for screen share
+    const videoElement = createVideoElement(user.uid);
+    videoElement.classList.add("screen-share");
+    
+    // Add screen share indicator
+    const screenShareIndicator = document.createElement("div");
+    screenShareIndicator.className = "screen-share-indicator";
+    screenShareIndicator.innerHTML = '<i class="fas fa-desktop"></i> Screen Share';
+    videoElement.appendChild(screenShareIndicator);
+    
+    remoteVideos.set(user.uid, videoElement);
+    updateVideoGrid();
+    
+    // Play the screen share
+    if (mediaType === "video") {
+      user.videoTrack.play(videoElement);
+    }
+  } else {
+    // Handle regular user video/audio as before
+    if (mediaType === "video") {
+      // Create or get video element for this user
+      let videoElement;
+      if (!remoteVideos.has(user.uid)) {
+        videoElement = createVideoElement(user.uid);
+        remoteVideos.set(user.uid, videoElement);
+        updateVideoGrid();
+        console.log(`Created new video element for ${user.uid}`);
+      } else {
+        videoElement = remoteVideos.get(user.uid);
+        console.log(`Using existing video element for ${user.uid}`);
+      }
+      
+      // Remove any previous video-muted state
+      videoElement.classList.remove("video-muted");
+      const mutedMsg = videoElement.querySelector(".video-muted-text");
+      if (mutedMsg) {
+        mutedMsg.style.display = "none";
+        console.log(`Hid video muted message for ${user.uid}`);
+      }
+      
+      // Play the video directly into the container element
+      console.log(`Playing remote video from ${user.uid}`);
+      try {
+        user.videoTrack.play(videoElement);
+        console.log(`Successfully started playing video for ${user.uid}`);
+      } catch (error) {
+        console.error(`Error playing remote video for ${user.uid}:`, error);
+      }
+      
+      // Update camera mute indicator for this user
+      const cameraMuteIndicator = cameraMuteIndicators.get(user.uid);
+      if (cameraMuteIndicator) {
+        cameraMuteIndicator.style.display = "none";
+        console.log(`Hiding camera mute indicator for ${user.uid}`);
+      }
+    }
+    if (mediaType === "audio") {
+      console.log(`Playing remote audio from ${user.uid}`);
+      user.audioTrack.play();
+      
+      // Update mic mute indicator for this user
+      const micMuteIndicator = micMuteIndicators.get(user.uid);
+      if (micMuteIndicator) {
+        micMuteIndicator.style.display = "none";
+        console.log(`Hiding mic mute indicator for ${user.uid}`);
+      }
+    }
+  }
+});
+
+// Update the user-left event handler to handle screen sharing cleanup
+rtcClient.on("user-left", (user) => {
+  console.log(`User ${user.uid} left the channel`);
+  
+  // Check if this is a screen share user
+  if (user.uid.toString().endsWith("-screen")) {
+    // Find and remove from screen share map
+    const originalUserId = user.uid.toString().replace(/-screen$/, "");
+    screenShareMap.delete(originalUserId);
+    updateParticipantsList();
+  }
+  
+  // Remove the user's track state
+  userTrackStates.delete(user.uid);
+  
+  // Clean up the user's indicators
+  cleanupUserIndicators(user.uid);
+  
+  // Remove the user's video element
+  const videoElement = remoteVideos.get(user.uid);
+  if (videoElement) {
+    videoElement.remove();
+    remoteVideos.delete(user.uid);
+    updateVideoGrid();
+    updateParticipantsList(); // Force UI refresh
+  }
+});
+
+// Function to clean up duplicate metadata
+async function cleanupDuplicateMetadata(userId) {
+  try {
+    console.log("[METADATA CLEANUP] Starting cleanup for user:", userId);
+    // Delete the old "screenSharing" key
+    await rtmClient.storage.removeUserMetadata([{
+      key: "screenSharing"
+    }]);
+    console.log("[METADATA CLEANUP] Successfully removed old metadata key");
+  } catch (error) {
+    console.error("[METADATA CLEANUP] Failed to cleanup metadata:", error);
+  }
+}
