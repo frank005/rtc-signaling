@@ -1091,3 +1091,34 @@ input[type="text"] {
   gap: 10px;
   margin-bottom: 10px;
 }
+
+.copy-link-btn {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copy-link-btn:hover {
+  background-color: #3d3d3d;
+}
+
+.copy-link-btn.copied {
+  background-color: #4CAF50;
+}
+
+.copy-link-btn i {
+  font-size: 16px;
+}
+
+/* Add some spacing between the buttons */
+.copy-link-btn + button {
+  margin-left: 8px;
+}

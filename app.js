@@ -768,6 +768,88 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // Add new DOM elements for copy link
+  const copyLinkBtn = document.createElement("button");
+  copyLinkBtn.className = "copy-link-btn inside-input";
+  copyLinkBtn.innerHTML = '<i class="fas fa-link"></i>';
+  copyLinkBtn.title = "Copy channel link";
+  copyLinkBtn.type = "button";
+
+  // Style the channel input's parent as relative for absolute positioning
+  channelNameInput.parentNode.style.position = "relative";
+  // Insert the button as the last child of the input's parent
+  channelNameInput.parentNode.appendChild(copyLinkBtn);
+
+  // Position the button inside the input, right side
+  copyLinkBtn.style.position = "absolute";
+  copyLinkBtn.style.top = "50%";
+  copyLinkBtn.style.right = "8px";
+  copyLinkBtn.style.transform = "translateY(-50%)";
+  copyLinkBtn.style.height = "28px";
+  copyLinkBtn.style.width = "28px";
+  copyLinkBtn.style.padding = "0";
+  copyLinkBtn.style.display = "flex";
+  copyLinkBtn.style.alignItems = "center";
+  copyLinkBtn.style.justifyContent = "center";
+  copyLinkBtn.style.background = "none";
+  copyLinkBtn.style.border = "none";
+  copyLinkBtn.style.cursor = "pointer";
+  copyLinkBtn.style.zIndex = "2";
+
+  // Add copy link functionality
+  copyLinkBtn.addEventListener("click", () => {
+    const appId = appIdInput.value.trim();
+    const channelName = channelNameInput.value.trim();
+    
+    if (!appId || !channelName) {
+      alert("Please enter both App ID and Channel Name first");
+      return;
+    }
+    
+    // Create the link with the current values
+    const link = `${window.location.origin}${window.location.pathname}?appId=${encodeURIComponent(appId)}&channel=${encodeURIComponent(channelName)}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(link).then(() => {
+      // Show success feedback
+      const originalTitle = copyLinkBtn.title;
+      copyLinkBtn.title = "Link copied!";
+      copyLinkBtn.classList.add("copied");
+      
+      // Reset after 2 seconds
+      setTimeout(() => {
+        copyLinkBtn.title = originalTitle;
+        copyLinkBtn.classList.remove("copied");
+      }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy link:', err);
+      alert('Failed to copy link to clipboard');
+    });
+  });
+
+  // Add URL parameter handling
+  const urlParams = new URLSearchParams(window.location.search);
+  const appId = urlParams.get('appId');
+  const channel = urlParams.get('channel');
+  const userId = urlParams.get('userId');
+  if (appId) {
+    appIdInput.value = appId;
+  }
+  if (channel) {
+    channelNameInput.value = channel;
+  }
+  if (userId) {
+    userIdInput.value = userId;
+  }
+  // If all three are present and not logged in, auto-login
+  if (appId && channel && userId && (!rtmClient || loginStatus.textContent.includes('Not logged in'))) {
+    // Simulate login button click
+    setTimeout(() => { loginBtn.click(); }, 200);
+  } else if (appId && channel && (!rtmClient || loginStatus.textContent.includes('Not logged in'))) {
+    showModal();
+    setTimeout(() => { userIdInput.focus(); }, 100);
+  }
 });
 
 /** Handle channel messages from RTM 2.x events. */
@@ -1939,11 +2021,11 @@ function findRemoteVideoElement(uid) {
   const videoElement = remoteVideos.get(uid.toString());
   
   // Log for debugging
-  console.log(`Finding remote video element for ${uid}, found: ${videoElement ? 'yes' : 'no'}`);
+  // console.log(`Finding remote video element for ${uid}, found: ${videoElement ? 'yes' : 'no'}`);
   
   // If not found, try to search by attribute as fallback
   if (!videoElement) {
-    console.log(`Fallback: Searching for video element with data-user-id=${uid}`);
+    // console.log(`Fallback: Searching for video element with data-user-id=${uid}`);
     return document.querySelector(`.video-player[data-user-id="${uid}"]`);
   }
   
@@ -2568,50 +2650,78 @@ async function togglePip() {
   if (!localVideoTrack) return;
 
   if (document.pictureInPictureElement) {
-    await document.exitPictureInPicture();
-    pipTriggeredByButton = false;
-  } else {
-    // Try to find a remote video first for mobile PiP
-    const remoteVideo = document.querySelector('#remoteVideo video');
-    if (remoteVideo && remoteVideo.srcObject) {
-      try {
-        await remoteVideo.requestPictureInPicture();
-        return;
-      } catch (error) {
-        console.error('Error entering PiP mode with remote video:', error);
-      }
-    }
+    await exitPip();
+    return;
+  }
 
-    // Fall back to local video if remote video PiP fails
-    const pipVideo = document.createElement('video');
-    pipVideo.srcObject = localVideoTrack.getMediaStream();
-    pipVideo.autoplay = true;
-    pipVideo.muted = true;
-    
-    pipContainer.innerHTML = '';
-    pipContainer.appendChild(pipVideo);
-    pipContainer.style.display = 'block';
-    
+  // First try to find a screen share video
+  const screenShareVideo = document.querySelector('.screen-share video');
+  if (screenShareVideo && screenShareVideo.srcObject) {
     try {
-      await pipVideo.requestPictureInPicture();
+      await screenShareVideo.requestPictureInPicture();
+      return;
     } catch (error) {
-      console.error('Error entering PiP mode:', error);
-      pipContainer.style.display = 'none';
+      console.error('Error entering PiP mode with screen share:', error);
     }
   }
+
+  // Then try to find a regular remote video
+  const remoteVideo = document.querySelector('#remoteVideo video');
+  if (remoteVideo && remoteVideo.srcObject) {
+    try {
+      await remoteVideo.requestPictureInPicture();
+      return;
+    } catch (error) {
+      console.error('Error entering PiP mode with remote video:', error);
+    }
+  }
+
+  // Try local video as a last resort using getMediaStreamTrack
+  try {
+    const mediaStreamTrack = localVideoTrack.getMediaStreamTrack();
+    if (mediaStreamTrack) {
+      const mediaStream = new MediaStream([mediaStreamTrack]);
+      const pipVideo = document.createElement('video');
+      pipVideo.srcObject = mediaStream;
+      pipVideo.autoplay = true;
+      pipVideo.muted = true;
+      
+      // Wait for metadata to load before requesting PiP
+      await new Promise((resolve, reject) => {
+        pipVideo.onloadedmetadata = resolve;
+        pipVideo.onerror = reject;
+        // Set a timeout in case the video never loads
+        setTimeout(reject, 5000);
+      });
+      
+      pipContainer.innerHTML = '';
+      pipContainer.appendChild(pipVideo);
+      pipContainer.style.display = 'block';
+      
+      await pipVideo.requestPictureInPicture();
+      return;
+    }
+  } catch (error) {
+    console.error('Error trying to use local video for PiP:', error);
+  }
+
+  // If we get here, no suitable video was found for PiP
+  alert('Picture-in-Picture is only available for remote video or screen sharing content.');
 }
 
-function exitPip() {
+async function exitPip() {
   if (document.pictureInPictureElement) {
-    document.exitPictureInPicture();
+    await document.exitPictureInPicture();
     pipTriggeredByButton = false;
   }
   pipContainer.style.display = 'none';
+  pipContainer.innerHTML = '';
 }
 
 // Add PiP event listeners
 document.addEventListener('leavepictureinpicture', () => {
   pipContainer.style.display = 'none';
+  pipContainer.innerHTML = '';
 });
 
 // Add new variables for screen sharing
