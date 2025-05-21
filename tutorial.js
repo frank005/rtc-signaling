@@ -50,7 +50,13 @@ let tutorialState = {
     {
       target: '#joinChannelBtn',
       title: 'Join Video Call',
-      content: 'Finally, click join channel to start your video call!',
+      content: 'Click join channel to start your video call!',
+      position: 'bottom'
+    },
+    {
+      target: '.copy-link-btn',
+      title: 'Invite Others',
+      content: 'Copy this link to invite others to join your channel! You can also share it directly. When you\'re ready, click Finish.',
       position: 'bottom'
     }
   ]
@@ -179,6 +185,10 @@ function updateTutorial() {
   const prevBtn = document.getElementById('tutorialPrevBtn');
   const overlay = document.getElementById('tutorialOverlay');
 
+  // Remove any existing Finish button
+  let finishBtn = document.getElementById('tutorialFinishBtn');
+  if (finishBtn) finishBtn.remove();
+
   if (!target || !tooltip) return;
 
   // Remove highlight from previous element
@@ -197,6 +207,24 @@ function updateTutorial() {
 
   // Update previous button visibility
   prevBtn.style.display = tutorialState.currentStep === 0 ? 'none' : 'block';
+
+  // Show Finish button only on last step
+  if (tutorialState.currentStep === tutorialState.steps.length - 1) {
+    finishBtn = document.createElement('button');
+    finishBtn.id = 'tutorialFinishBtn';
+    finishBtn.textContent = 'Finish';
+    finishBtn.style.cssText = `
+      padding: 8px 16px;
+      background: #89b4fa;
+      color: #1a1a1a;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 10px;
+    `;
+    finishBtn.addEventListener('click', completeTutorial);
+    prevBtn.parentNode.appendChild(finishBtn);
+  }
 
   // Adjust overlay background for modal steps
   const loginModal = document.getElementById('loginModal');
@@ -266,7 +294,11 @@ function updateTutorial() {
     boxShadow: target.style.boxShadow,
     pointerEvents: target.style.pointerEvents
   };
-  target.style.position = 'relative';
+  // Only set position: relative if not already absolute/fixed
+  const computedPosition = window.getComputedStyle(target).position;
+  if (computedPosition !== 'absolute' && computedPosition !== 'fixed') {
+    target.style.position = 'relative';
+  }
   target.style.zIndex = '10001';
   target.style.boxShadow = '0 0 0 4px #89b4fa';
   target.style.pointerEvents = 'auto';
@@ -364,7 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (joinChannelBtn) {
     joinChannelBtn.addEventListener('click', () => {
       if (tutorialState.currentStep === 6) {
-        completeTutorial();
+        tutorialState.currentStep = 7;
+        updateTutorial();
       }
     });
   }
