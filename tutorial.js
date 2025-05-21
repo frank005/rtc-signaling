@@ -1,4 +1,12 @@
 // Tutorial state management
+// --- Skip tutorial if skipTutorial=1 is in the URL ---
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('skipTutorial') === '1') {
+    localStorage.setItem('tutorialCompleted', 'true');
+  }
+})();
+
 let tutorialState = {
   currentStep: 0,
   completed: false,

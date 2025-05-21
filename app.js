@@ -807,8 +807,13 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    // Create the link with the current values
-    const link = `${window.location.origin}${window.location.pathname}?appId=${encodeURIComponent(appId)}&channel=${encodeURIComponent(channelName)}`;
+    // Create the link with the current values and skipTutorial=1
+    const params = new URLSearchParams({
+      appId: appId,
+      channel: channelName,
+      skipTutorial: '1'
+    });
+    const link = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
     
     // Copy to clipboard
     navigator.clipboard.writeText(link).then(() => {
