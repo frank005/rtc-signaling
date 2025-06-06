@@ -152,6 +152,34 @@ function initTutorial() {
     cursor: pointer;
   `;
 
+  const dismissBtn = document.createElement('button');
+  dismissBtn.id = 'tutorialDismissBtn';
+  dismissBtn.textContent = '×';
+  dismissBtn.style.cssText = `
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    background: none;
+    color: #ffffff;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  `;
+  dismissBtn.addEventListener('mouseover', () => {
+    dismissBtn.style.background = 'rgba(255, 255, 255, 0.1)';
+  });
+  dismissBtn.addEventListener('mouseout', () => {
+    dismissBtn.style.background = 'none';
+  });
+  dismissBtn.addEventListener('click', completeTutorial);
+
   // Assemble the tutorial elements
   content.appendChild(title);
   content.appendChild(text);
@@ -159,6 +187,7 @@ function initTutorial() {
   buttons.appendChild(prevBtn);
   tooltip.appendChild(buttons);
   tooltip.appendChild(arrow);
+  tooltip.appendChild(dismissBtn);
   overlay.appendChild(tooltip);
   document.body.appendChild(overlay);
 

@@ -1681,6 +1681,9 @@ leaveChannelBtn.addEventListener("click", async () => {
     stopScreenShareBtn.style.display = "none";
     stopScreenShareBtn.disabled = true;
     
+    // Remove wave effect classes
+    toggleAudioBtn.classList.remove('audio-level-wave', 'level-1', 'level-2', 'level-3', 'level-4', 'level-5', 'level-6', 'level-7', 'level-8');
+    
   } catch (err) {
     console.error("Failed to leave RTC channel:", err);
   }
@@ -1931,8 +1934,6 @@ function stopVolumeDetection() {
 
 // Start volume detection and update UI - using direct polling approach
 function startVolumeDetection() {
-  // console.log("Starting volume detection with polling approach");
-  
   // Clear any existing interval
   if (volumeDetectionInterval) {
     clearInterval(volumeDetectionInterval);
@@ -1945,18 +1946,34 @@ function startVolumeDetection() {
   // Enable audio volume indicator on the RTC client
   rtcClient.enableAudioVolumeIndicator();
   
+  // Add audio-level-wave class to the mute button text
+  toggleAudioBtn.classList.add('audio-level-wave', 'smooth-bar');
+  
   // Set up interval for local volume monitoring
   volumeDetectionInterval = setInterval(() => {
     if (localAudioTrack) {
       // Get volume level directly from the track
       const volumeLevel = localAudioTrack.getVolumeLevel() * 100; // Convert to 0-100 scale
-      // console.log(`Local track volume level: ${volumeLevel}, muted: ${localAudioTrack.muted}`);
+      
+      // Update level indicator (1-8)
+      // Only show indicator if volume is above a minimum threshold
+      if (volumeLevel > 0) {
+        // Set smooth bar width
+        toggleAudioBtn.style.setProperty('--audio-bar', `${volumeLevel}%`);
+        // Old level-x code remains for compatibility
+        const waveLevel = Math.min(8, Math.max(1, Math.ceil(volumeLevel / 12.5)));
+        toggleAudioBtn.classList.remove('level-1', 'level-2', 'level-3', 'level-4', 'level-5', 'level-6', 'level-7', 'level-8');
+        toggleAudioBtn.classList.add(`level-${waveLevel}`);
+      } else {
+        // Remove all level classes if volume is 0
+        toggleAudioBtn.classList.remove('level-1', 'level-2', 'level-3', 'level-4', 'level-5', 'level-6', 'level-7', 'level-8');
+        // Hide smooth bar
+        toggleAudioBtn.style.setProperty('--audio-bar', '0%');
+      }
       
       // Add speaking border if volume is above threshold AND user is not muted
       const localVideoElement = document.getElementById("localVideo");
       if (volumeLevel > VOLUME_SPEAKING_THRESHOLD) {
-        // console.log(`Local user is speaking with level ${volumeLevel}`);
-        
         // Only add speaking class if user is NOT muted
         if (!localAudioTrack.muted) {
           localVideoElement.classList.add("speaking");
@@ -1971,13 +1988,10 @@ function startVolumeDetection() {
       // Show talking while muted notification
       const talkingWhileMutedNotification = document.getElementById("talking-while-muted");
       if (talkingWhileMutedNotification && localAudioTrack.muted && volumeLevel > VOLUME_HIGH_THRESHOLD) {
-        // console.log("TALKING WHILE MUTED DETECTED!");
         if (!isTalkingWhileMuted) {
-          // console.log("Showing talking while muted notification");
           talkingWhileMutedNotification.style.display = "block";
           isTalkingWhileMuted = true;
           setTimeout(() => {
-            // console.log("Hiding talking while muted notification after timeout");
             talkingWhileMutedNotification.style.display = "none";
             isTalkingWhileMuted = false;
           }, 3000);
@@ -1988,7 +2002,6 @@ function startVolumeDetection() {
       if (!document.getElementById("talking-while-muted")) {
         const localVideoElem = document.getElementById("localVideo");
         if (localVideoElem) {
-          // console.log("Creating missing talking-while-muted notification");
           const newNotification = document.createElement("div");
           newNotification.id = "talking-while-muted";
           newNotification.textContent = "You're talking but your mic is muted!";
@@ -2001,7 +2014,6 @@ function startVolumeDetection() {
   
   // Set up the volume-indicator event for remote users
   rtcClient.on("volume-indicator", volumes => {
-    // console.log("Volume indicator event:", volumes.map(v => `${v.uid}: ${v.level}`).join(', '));
     volumes.forEach(volume => {
       // Handle remote users only
       if (volume.uid.toString() !== userIdInput.value) {
@@ -2009,7 +2021,6 @@ function startVolumeDetection() {
         if (remoteVideoElement) {
           // Add speaking border if volume is above threshold
           if (volume.level > VOLUME_SPEAKING_THRESHOLD) {
-            // console.log(`Remote user ${volume.uid} is speaking with level ${volume.level}`);
             remoteVideoElement.classList.add("speaking");
           } else {
             remoteVideoElement.classList.remove("speaking");
