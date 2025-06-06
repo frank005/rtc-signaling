@@ -1205,3 +1205,23 @@ input[type="text"] {
   opacity: 0.85;
   box-shadow: 0 0 10px #7aa2f7aa;
 }
+
+.github-link {
+  position: absolute;
+  top: 36px;
+  left: 32px;
+  color: #fff; /* Changed to white for dark background */
+  transition: transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+}
+
+.github-link:hover {
+  transform: scale(1.1);
+  color: #4094f7;
+}
+
+.github-icon {
+  fill: currentColor;
+}
