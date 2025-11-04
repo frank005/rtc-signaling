@@ -44,7 +44,7 @@ This project implements a feature-rich video conferencing and chat application u
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/rtc-signaling.git
+git clone https://github.com/AgoraIO-Community/rtc-signaling.git
 cd rtc-signaling
 ```
 

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "homepage": "https://frank005.github.io/rtc-signaling",
+  "homepage": "https://agoraio-community.github.io/rtc-signaling",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
