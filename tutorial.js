@@ -82,7 +82,8 @@ function initTutorial() {
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
     z-index: 9999;
     display: flex;
     justify-content: center;
@@ -94,12 +95,13 @@ function initTutorial() {
   tooltip.id = 'tutorialTooltip';
   tooltip.style.cssText = `
     position: absolute;
-    background: #1a1a1a;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
     color: #ffffff;
     padding: 20px;
-    border-radius: 8px;
+    border-radius: 1rem;
     max-width: 300px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(6, 182, 212, 0.1);
     z-index: 10000;
     pointer-events: auto;
   `;
@@ -123,7 +125,11 @@ function initTutorial() {
   title.id = 'tutorialTitle';
   title.style.cssText = `
     margin: 0 0 10px 0;
-    color: #89b4fa;
+    background: linear-gradient(to right, #22d3ee, #3b82f6, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: bold;
   `;
 
   const text = document.createElement('p');
@@ -143,12 +149,9 @@ function initTutorial() {
   const prevBtn = document.createElement('button');
   prevBtn.id = 'tutorialPrevBtn';
   prevBtn.textContent = 'Previous';
+  prevBtn.className = 'modern-btn modern-btn-secondary';
   prevBtn.style.cssText = `
     padding: 8px 16px;
-    background: #2a2a2a;
-    color: #ffffff;
-    border: none;
-    border-radius: 4px;
     cursor: pointer;
   `;
 
@@ -242,12 +245,9 @@ function updateTutorial() {
     finishBtn = document.createElement('button');
     finishBtn.id = 'tutorialFinishBtn';
     finishBtn.textContent = 'Finish';
+    finishBtn.className = 'modern-btn modern-btn-primary';
     finishBtn.style.cssText = `
       padding: 8px 16px;
-      background: #89b4fa;
-      color: #1a1a1a;
-      border: none;
-      border-radius: 4px;
       cursor: pointer;
       margin-left: 10px;
     `;
@@ -259,8 +259,10 @@ function updateTutorial() {
   const loginModal = document.getElementById('loginModal');
   if (loginModal && loginModal.contains(target)) {
     overlay.style.background = 'rgba(0,0,0,0.05)'; // almost transparent
+    overlay.style.backdropFilter = 'none';
   } else {
-    overlay.style.background = 'rgba(0,0,0,0.7)'; // normal dark
+    overlay.style.background = 'rgba(0,0,0,0.75)'; // normal dark
+    overlay.style.backdropFilter = 'blur(4px)';
   }
 
   // Position tooltip
@@ -275,28 +277,28 @@ function updateTutorial() {
       left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
       arrowTop = tooltipRect.height;
       arrowLeft = tooltipRect.width / 2;
-      arrowBorder = 'border-top-color: #1a1a1a;';
+      arrowBorder = 'border-top-color: #1e293b;';
       break;
     case 'bottom':
       top = targetRect.bottom + 20;
       left = targetRect.left + (targetRect.width - tooltipRect.width) / 2;
       arrowTop = -20;
       arrowLeft = tooltipRect.width / 2;
-      arrowBorder = 'border-bottom-color: #1a1a1a;';
+      arrowBorder = 'border-bottom-color: #1e293b;';
       break;
     case 'left':
       top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
       left = targetRect.left - tooltipRect.width - 20;
       arrowTop = tooltipRect.height / 2;
       arrowLeft = tooltipRect.width;
-      arrowBorder = 'border-left-color: #1a1a1a;';
+      arrowBorder = 'border-left-color: #1e293b;';
       break;
     case 'right':
       top = targetRect.top + (targetRect.height - tooltipRect.height) / 2;
       left = targetRect.right + 20;
       arrowTop = tooltipRect.height / 2;
       arrowLeft = -20;
-      arrowBorder = 'border-right-color: #1a1a1a;';
+      arrowBorder = 'border-right-color: #1e293b;';
       break;
   }
 
@@ -329,7 +331,7 @@ function updateTutorial() {
     target.style.position = 'relative';
   }
   target.style.zIndex = '10001';
-  target.style.boxShadow = '0 0 0 4px #89b4fa';
+  target.style.boxShadow = '0 0 0 4px rgba(6, 182, 212, 0.5)';
   target.style.pointerEvents = 'auto';
 }
 

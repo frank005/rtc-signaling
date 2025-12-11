@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RTC & Signaling</title>
+    <link rel="stylesheet" href="./modern-ui-library.css" />
     <link rel="stylesheet" href="./style.css" />
     <!-- Add FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
@@ -14,7 +15,7 @@
   <body>
     <!-- Login Modal -->
     <div id="loginModal" class="modal">
-      <div class="modal-content">
+      <div class="modal-content modern-card">
         <h2>Login Settings</h2>
         <div class="input-group">
           <label for="appId">App ID:</label>
@@ -37,8 +38,8 @@
           />
         </div>
         <div class="button-group">
-          <button id="loginBtn">Login</button>
-          <button id="closeModalBtn">Cancel</button>
+          <button id="loginBtn" class="modern-btn modern-btn-primary">Login</button>
+          <button id="closeModalBtn" class="modern-btn modern-btn-secondary">Cancel</button>
         </div>
       </div>
     </div>
@@ -50,21 +51,21 @@
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
           </svg>
         </a>
-        <h1>Agora RTC & Signaling (RTM) Demo</h1>
+        <h1 class="gradient-text-primary">Agora RTC & Signaling (RTM) Demo</h1>
         <div class="header-controls">
           <div class="login-status">
             <span id="loginStatus" class="status-text">Not logged in</span>
             <span id="presenceIndicator" class="presence-indicator"></span>
           </div>
-          <button id="showLoginBtn">Login Settings</button>
-          <button id="showDeviceBtn">Device Settings</button>
-          <button id="logoutBtn" disabled>Logout</button>
+          <button id="showLoginBtn" class="modern-btn modern-btn-secondary">Login Settings</button>
+          <button id="showDeviceBtn" class="modern-btn modern-btn-secondary">Device Settings</button>
+          <button id="logoutBtn" class="modern-btn modern-btn-danger" disabled>Logout</button>
         </div>
       </header>
 
       <!-- Device Settings Modal -->
       <div id="deviceModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modern-card">
           <h2>Device Settings</h2>
           <div class="input-group">
             <label for="audioSelect">Microphone:</label>
@@ -75,24 +76,24 @@
             <select id="videoSelect" class="select-input"></select>
           </div>
           <div class="button-group">
-            <button id="closeDeviceBtn">Close</button>
+            <button id="closeDeviceBtn" class="modern-btn modern-btn-secondary">Close</button>
           </div>
         </div>
       </div>
 
       <div class="main-content">
         <!-- Video Section -->
-        <section class="video-section">
+        <section class="video-section modern-card">
           <div class="video-container">
             <div class="video-controls">
               <div class="rtc-controls">
-                <button id="joinChannelBtn" disabled>Join Channel</button>
-                <button id="leaveChannelBtn" disabled>Leave Channel</button>
-                <button id="toggleAudioBtn" disabled>Mute Audio</button>
-                <button id="toggleVideoBtn" disabled>Mute Video</button>
-                <button id="screenShareBtn" disabled>Share Screen</button>
-                <button id="stopScreenShareBtn" style="display: none;" disabled>Stop Sharing</button>
-                <button id="pipBtn" disabled>PiP</button>
+                <button id="joinChannelBtn" class="modern-btn modern-btn-primary" disabled>Join Channel</button>
+                <button id="leaveChannelBtn" class="modern-btn modern-btn-danger" disabled>Leave Channel</button>
+                <button id="toggleAudioBtn" class="modern-btn modern-btn-secondary" disabled>Mute Audio</button>
+                <button id="toggleVideoBtn" class="modern-btn modern-btn-secondary" disabled>Mute Video</button>
+                <button id="screenShareBtn" class="modern-btn modern-btn-secondary" disabled>Share Screen</button>
+                <button id="stopScreenShareBtn" class="modern-btn modern-btn-warning" style="display: none;" disabled>Stop Sharing</button>
+                <button id="pipBtn" class="modern-btn modern-btn-secondary" disabled>PiP</button>
               </div>
             </div>
             <div class="video-box">
@@ -104,7 +105,7 @@
           </div>
         </section>
         
-        <div class="chat-section">
+        <div class="chat-section modern-card">
           <div class="channel-controls">
             <div class="input-group">
               <label for="channelName">Channel:</label>
@@ -115,8 +116,8 @@
               />
             </div>
             <div class="button-group">
-              <button id="subscribeBtn" disabled>Subscribe</button>
-              <button id="unsubscribeBtn" disabled>Unsubscribe</button>
+              <button id="subscribeBtn" class="modern-btn modern-btn-success" disabled>Subscribe</button>
+              <button id="unsubscribeBtn" class="modern-btn modern-btn-danger" disabled>Unsubscribe</button>
             </div>
             <p id="channelStatus" class="status-text"></p>
           </div>
@@ -128,7 +129,7 @@
             </div>
 
             <!-- Participants List with heading -->
-            <div class="participants-list">
+            <div class="participants-list modern-panel">
               <h3>Participants</h3>
               <div id="participantsList" class="participants-container">
                 <!-- Participants will be added here dynamically -->
@@ -141,7 +142,7 @@
                 <div class="chat-box" id="channelChatBox"></div>
                 <div class="chat-input">
                   <input type="text" id="channelMsg" placeholder="Type a message..." />
-                  <button id="sendChannelMsgBtn" disabled>Send</button>
+                  <button id="sendChannelMsgBtn" class="modern-btn modern-btn-primary" disabled>Send</button>
                 </div>
               </div>
 
@@ -150,7 +151,7 @@
                 <div class="chat-box" id="peerChatBox"></div>
                 <div class="chat-input">
                   <input type="text" id="peerMsg" placeholder="Type a message..." />
-                  <button id="sendPeerMsgBtn" disabled>Send</button>
+                  <button id="sendPeerMsgBtn" class="modern-btn modern-btn-primary" disabled>Send</button>
                 </div>
               </div>
             </div>

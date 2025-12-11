@@ -1,13 +1,44 @@
-/* Define CSS variables */
+/* Define CSS variables - Updated to match modern UI library color scheme */
 :root {
-  --bg-primary: #24283b;
-  --bg-secondary: #1e1e2e;
-  --accent-color: #7aa2f7;
-  --border-color: #414868;
+  --bg-primary: #1e293b;
+  --bg-secondary: #0f172a;
+  --accent-color: #06b6d4;
+  --accent-secondary: #3b82f6;
+  --accent-tertiary: #6366f1;
+  --border-color: rgba(148, 163, 184, 0.2);
   --text-light: #ffffff;
-  --text-dark: #a5adce;
+  --text-dark: #cbd5e1;
   --audio-bar: 0%;
 }
+
+
+
+
+
+
+/* Override scrollbar to match site theme */
+::-webkit-scrollbar-thumb {
+  background: rgba(122, 162, 247, 0.5) !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(122, 162, 247, 0.7) !important;
+}
+
+/* Override checkbox accent color */
+input[type="checkbox"] {
+  accent-color: #7aa2f7 !important;
+}
+
+/* Override modal backdrop and content */
+.modal {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+.modal-content.modern-card {
+  background: linear-gradient(135deg, #24283b 0%, #1e1e2e 100%) !important;
+}
+
 
 * {
   margin: 0;
@@ -19,9 +50,11 @@ body {
   margin: 0;
   padding: 20px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: #1a1b26;
+  background: linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a) !important;
+  background-color: #0f172a;
   color: #ffffff;
   line-height: 1.6;
+  min-height: 100vh;
 }
 
 .container {
@@ -36,9 +69,10 @@ header {
   align-items: center;
   margin-bottom: 30px;
   padding: 20px;
-  background: #24283b;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border-radius: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(6, 182, 212, 0.1);
 }
 
 .header-controls {
@@ -48,8 +82,12 @@ header {
 }
 
 h1 {
-  color: #89b4fa;
+  background: linear-gradient(to right, #22d3ee, #3b82f6, #a855f7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   font-size: 1.8em;
+  font-weight: bold;
 }
 
 .main-content {
@@ -62,10 +100,9 @@ h1 {
 
 /* Video Section */
 .video-section {
-  background: #24283b;
-  border-radius: 8px;
+  background: transparent; /* modern-card handles background */
+  border-radius: 1rem;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   overflow: auto; /* Allow scrolling if content is too tall */
   height: 100%;
 }
@@ -100,10 +137,17 @@ h1 {
   position: relative;
   width: 100%;
   aspect-ratio: 16/9;
-  background-color: #16161e;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: 1rem;
   overflow: hidden;
-  border: 1px solid #414868;
+  border: 2px solid rgba(6, 182, 212, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.1), 0 0 0 1px rgba(6, 182, 212, 0.1);
+  transition: all 0.3s ease;
+}
+
+.video-player:hover {
+  border-color: rgba(6, 182, 212, 0.4);
+  box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.2), 0 0 0 1px rgba(6, 182, 212, 0.2);
 }
 
 .video-player video {
@@ -120,29 +164,10 @@ h1 {
   margin-top: 10px;
 }
 
+/* Video controls buttons now use modern-btn classes - styles removed to avoid conflicts */
 .video-controls button {
-  height: 36px;
+  height: auto;
   min-width: 100px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #414868;
-  color: #ffffff;
-  border: 1px solid #565f89;
-  padding: 8px 16px;
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.video-controls button:hover {
-  background-color: #565f89;
-}
-
-.video-controls button:disabled {
-  background-color: #1a1b26;
-  color: #6c7086;
-  border-color: #414868;
 }
 
 /* Video Labels */
@@ -160,10 +185,9 @@ h1 {
 
 /* Chat Section */
 .chat-section {
-  background: #24283b;
-  border-radius: 8px;
+  background: transparent; /* modern-card handles background */
+  border-radius: 1rem;
   padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -178,7 +202,7 @@ h1 {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
-  border-bottom: 1px solid #414868;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   padding-bottom: 10px;
 }
 
@@ -188,13 +212,13 @@ h1 {
   border: none;
   padding: 8px 16px;
   cursor: pointer;
-  color: #a5adce;
+  color: #cbd5e1;
   font-size: 14px;
 }
 
 .tab-btn.active {
-  color: #89b4fa;
-  border-bottom: 2px solid #89b4fa;
+  color: #06b6d4;
+  border-bottom: 2px solid #06b6d4;
 }
 
 .message-notification {
@@ -244,17 +268,13 @@ h1 {
   display: flex;
   gap: 10px;
   padding: 10px;
-  background-color: #24283b;
-  border-top: 1px solid #414868;
+  background-color: transparent;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .chat-input input {
   flex: 1;
-  background-color: #16161e;
-  padding: 10px;
-  border: 1px solid #414868;
-  border-radius: 4px;
-  color: #ffffff;
+  /* Styles handled by modern-ui-library.css */
 }
 
 /* Scrollbar styling */
@@ -299,13 +319,12 @@ h1 {
 
 .modal-content {
   position: relative;
-  background-color: #24283b;
+  background: transparent; /* modern-card handles background */
   margin: 15% auto;
   padding: 20px;
   width: 90%;
   max-width: 500px;
-  border-radius: 8px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  border-radius: 1.5rem;
 }
 
 /* Common Styles */
@@ -319,35 +338,38 @@ label {
   color: #cdd6f4;
 }
 
-input, select {
-  background-color: #16161e;
-  border: 1px solid #414868;
+/* Input and select styles now handled by modern-ui-library.css with overrides above */
+input:not([type="text"]):not([type="number"]):not([type="password"]):not([type="email"]), 
+select:not(.modern-ui-library-select) {
+  background-color: #0f172a;
+  border: 1px solid rgba(148, 163, 184, 0.2);
   color: #ffffff;
   padding: 5px;
   border-radius: 4px;
 }
 
-button {
-  background-color: #414868;
+/* Base button styles - modern-btn classes handle most styling now */
+button:not(.modern-btn) {
+  background-color: rgba(30, 41, 59, 0.6);
   color: #ffffff;
-  border: 1px solid #565f89;
+  border: 1px solid rgba(148, 163, 184, 0.3);
   padding: 8px 16px;
   cursor: pointer;
   border-radius: 4px;
 }
 
-button:hover {
-  background-color: #565f89;
+button:not(.modern-btn):hover {
+  background-color: rgba(30, 41, 59, 0.8);
 }
 
-button:disabled {
+button:not(.modern-btn):disabled {
   background-color: #1a1b26;
   color: #6c7086;
-  border-color: #414868;
+  border-color: rgba(148, 163, 184, 0.2);
 }
 
 .status-text {
-  color: #a5adce;
+  color: #cbd5e1;
   font-size: 14px;
 }
 
@@ -355,8 +377,8 @@ button:disabled {
 .chat-message {
   padding: 8px 12px;
   margin-bottom: 4px;
-  border-radius: 8px;
-  background-color: #24283b;
+  border-radius: 0.5rem;
+  background: rgba(30, 41, 59, 0.4);
   color: #ffffff;
   font-size: 14px;
   line-height: 1.3;
@@ -368,39 +390,39 @@ button:disabled {
 /* Sent message styles */
 .chat-message[data-sender="self"],
 .message-to {
-  background-color: #2c3047;
+  background: rgba(30, 41, 59, 0.6);
   margin-left: 20%;
-  border-left: 3px solid #89b4fa;
+  border-left: 3px solid rgba(6, 182, 212, 0.5);
 }
 
 /* Received message styles */
 .chat-message[data-sender="other"],
 .message-from {
-  background-color: #24283b;
+  background: rgba(30, 41, 59, 0.4);
   margin-right: 20%;
-  border-left: 3px solid #9ece6a;
+  border-left: 3px solid rgba(16, 185, 129, 0.5);
 }
 
 /* System message styles */
 .message-system {
-  background-color: #1e1e2e;
+  background: rgba(15, 23, 42, 0.6);
   margin: 4px auto;
   text-align: center;
   font-style: italic;
-  color: #a5adce;
+  color: #cbd5e1;
   border-left: none;
-  border-bottom: 1px dashed #414868;
+  border-bottom: 1px dashed rgba(148, 163, 184, 0.2);
   max-width: 80%;
 }
 
 /* Message sender/recipient indicator styling */
 .chat-message .to {
-  color: #89b4fa;
+  color: #22d3ee;
   font-weight: 600;
 }
 
 .chat-message .from {
-  color: #9ece6a;
+  color: #10b981;
   font-weight: 600;
 }
 
@@ -442,9 +464,8 @@ button:disabled {
 .participants-list {
   margin-bottom: 20px;
   padding: 15px;
-  background-color: #24283b;
-  border-radius: 8px;
-  border: 1px solid #414868;
+  background: transparent; /* modern-panel handles background */
+  border-radius: 1rem;
 }
 
 .participants-list h3 {
@@ -461,9 +482,9 @@ button:disabled {
   max-height: 200px;
   overflow-y: auto;
   padding: 8px;
-  background-color: #1e1e2e;
-  border-radius: 8px;
-  border: 1px solid #414868;
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .participant-item {
@@ -471,11 +492,11 @@ button:disabled {
   align-items: center;
   gap: 10px;
   padding: 10px 15px;
-  background-color: #24283b;
+  background-color: #1e293b;
   border-radius: 20px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid #414868;
+  border: 1px solid rgba(148, 163, 184, 0.2);
   margin-bottom: 8px;
 }
 
@@ -487,7 +508,7 @@ button:disabled {
 
 .participant-item.selected {
   background-color: #2c3047;
-  border-color: #89b4fa;
+  border-color: #06b6d4;
 }
 
 .participant-item .presence-indicator {
@@ -503,7 +524,7 @@ button:disabled {
   top: 10px;
   right: 10px;
   background-color: rgba(137, 180, 250, 0.9);
-  color: #1e1e2e;
+  color: #0f172a;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -516,7 +537,7 @@ button:disabled {
 .participant-item .screen-share-indicator {
   position: static;
   background: none;
-  color: #89b4fa;
+  color: #06b6d4;
   font-size: 16px;
   font-weight: normal;
   margin-left: 4px;
@@ -527,7 +548,7 @@ button:disabled {
   align-items: center;
 }
 .participant-item .screen-share-indicator i {
-  color: #89b4fa;
+  color: #06b6d4;
   font-size: 16px;
   animation: pulse 2s infinite;
 }
@@ -538,21 +559,9 @@ button:disabled {
   font-weight: 500;
 }
 
-/* Select Input Styles */
+/* Select Input Styles - now handled by modern-ui-library.css */
 .select-input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  background-color: white;
-  cursor: pointer;
-}
-
-.select-input:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  /* Styles handled by modern-ui-library.css */
 }
 
 /* Device Modal Specific Styles */
@@ -573,27 +582,18 @@ button:disabled {
   font-size: 14px;
 }
 
+/* Device modal inputs now handled by modern-ui-library.css */
 #deviceModal select,
 #deviceModal input {
   width: 100%;
-  padding: 10px;
-  background-color: #1e1e2e;
-  border: 1px solid #565f89;
-  color: #ffffff;
-  font-size: 14px;
+  /* Other styles handled by modern-ui-library.css */
 }
 
-/* Login/Device Settings Input Styles */
+/* Login/Device Settings Input Styles - now handled by modern-ui-library.css */
 .select-input,
 input[type="text"] {
-  width: 100%;
   max-width: 300px;
-  padding: 8px;
-  border: 1px solid #414868;
-  border-radius: 4px;
-  font-size: 14px;
-  background-color: #1e1e2e;
-  color: #ffffff;
+  /* Other styles handled by modern-ui-library.css */
 }
 
 .additional-videos {
@@ -618,12 +618,12 @@ input[type="text"] {
 }
 
 .participants-window {
-  background-color: #24283b;
-  border: 1px solid #414868;
+  background-color: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .participant {
-  border-bottom: 1px solid #414868;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   cursor: pointer;
 }
 
@@ -633,9 +633,9 @@ input[type="text"] {
 
 /* Style the participants list to be above the chat */
 #participantsList {
-  background-color: #1e1e2e;
+  background-color: #0f172a;
   border-radius: 8px;
-  border: 1px solid #414868;
+  border: 1px solid rgba(148, 163, 184, 0.2);
   padding: 8px;
   max-height: 200px;
   overflow-y: auto;
@@ -649,12 +649,12 @@ input[type="text"] {
 
 /* Peer Chat Header */
 .peer-chat-header {
-  background-color: #24283b;
+  background-color: #1e293b;
   padding: 10px 15px;
-  border-bottom: 1px solid #414868;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   margin-bottom: 10px;
   font-weight: 600;
-  color: #89b4fa;
+  color: #06b6d4;
   text-align: center;
   border-radius: 4px 4px 0 0;
 }
@@ -665,10 +665,10 @@ input[type="text"] {
   height: 0; /* Allow flex to control the height */
   overflow-y: auto;
   padding: 10px;
-  background-color: #24283b;
-  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.4);
+  border-radius: 0.75rem;
   margin-bottom: 10px;
-  border: 1px solid #414868;
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 /* Speaking indicator styling */
@@ -858,7 +858,7 @@ input[type="text"] {
 }
 
 .stats-header.network {
-  color: #89b4fa; /* Blue */
+  color: #06b6d4; /* Blue */
 }
 
 .stats-header.performance {
@@ -1010,7 +1010,7 @@ input[type="text"] {
   right: 20px;
   width: 320px;
   height: 180px;
-  background-color: #16161e;
+  background-color: #0f172a;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -1044,7 +1044,7 @@ input[type="text"] {
   top: 10px;
   right: 10px;
   background-color: rgba(137, 180, 250, 0.9);
-  color: #1e1e2e;
+  color: #0f172a;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -1054,7 +1054,7 @@ input[type="text"] {
 }
 
 .screen-share-icon {
-  color: #89b4fa;
+  color: #06b6d4;
   margin-left: 4px;
   font-size: 14px;
   animation: pulse 2s infinite;
@@ -1097,7 +1097,7 @@ input[type="text"] {
   background-color: #2d2d2d;
   color: #ffffff;
   border: none;
-  border-radius: 4px;
+  border-radius: 0.5rem;
   padding: 8px 12px;
   margin-right: 8px;
   cursor: pointer;
